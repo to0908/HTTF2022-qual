@@ -3,11 +3,13 @@
 cd `dirname $0`
 g++ -std=gnu++1z -I . -O2 -Wall -Wfatal-errors -Wextra -W main.cpp
 rm -rf scores
+rm -rf out
 mkdir scores
+mkdir out
 
 st=0
 en=20
-procs=0
+procs=3
 small=0
 
 calc() {
