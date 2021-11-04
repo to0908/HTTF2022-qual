@@ -30,3 +30,16 @@
 *.exe
 *.out
 *.app
+
+.vscode/c_*
+.vscode/settings.json
+in
+out
+src
+target
+Cargo*
+README_tools.md
+README.html
+seeds.txt
+vis.html
+scores
