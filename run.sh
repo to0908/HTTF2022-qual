@@ -7,7 +7,7 @@ mkdir scores
 
 # ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/0000.txt > out/0000.txt
     
-for i in `seq 1 9`
+for i in `seq 0 9`
 do
 ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/000$i.txt > out/000$i.txt 2> scores/000$i.txt
 done
