@@ -5,7 +5,7 @@
             "label": "code",
             "type": "shell",
             "command": [
-                "sh run.sh"
+                "time ./run.sh"
             ],
             "group": {
                 "kind": "build",
