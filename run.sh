@@ -9,8 +9,7 @@ mkdir out
 
 st=0
 en=20
-procs=3
-small=0
+procs=0
 
 calc() {
   ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/$1.txt > out/$1.txt 2> scores/$1.txt
@@ -18,14 +17,15 @@ calc() {
 
 export -f calc
 
-# ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/0000.txt > out/0000.txt
-    
-# for i in `seq 0 9`
-# do
-# ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/000$i.txt > out/000$i.txt 2> scores/000$i.txt
-# done
+# -J : 150ケース実行
+while getopts "j:J" optKey; do
+  case "$optKey" in
+    J)
+      en=149
+      ;;
+  esac
+done
 
 seq -f '%04g' $st $en | xargs -n1 -P$procs -I{} bash -c "calc {}"
-
 
 python3 scoreSum.py
