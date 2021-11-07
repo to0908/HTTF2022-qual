@@ -53,11 +53,13 @@ int calcLoss(int person){
     for(auto [task, past]: doneTask[person]){
         int est = estimateDay(person, task);
         loss += (past - est) * (past - est);
+        // if(person == 1)
+        //     cerr << "LOSS " << day << " " << task << " " << past << " " << est << " " << (past - est) * (past - est) << endl;
     }
     // Ridge
-    for(int i=0;i<K;i++){
-        loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size();
-    }
+    // for(int i=0;i<K;i++){
+    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size();
+    // }
     return loss;
 }
 
@@ -68,7 +70,10 @@ void estimateSkill(int person, Timer &time){
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
-
+    int gap = abs(past - estimateDay(person, working[person][0]));
+    if(gap > 15){
+        for(int i=0;i<K;i++) skill[person][i] = randint() % 15;
+    }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
     int loss = calcLoss(person);
     int notZero = 0;
@@ -97,11 +102,13 @@ void estimateSkill(int person, Timer &time){
         }
         int lossNext = calcLoss(person);
         if(lossNext < loss){
+            // cerr << person << " " << loss << " " << lossNext << endl;
             loss = lossNext;
             bestSkill = skill[person];
+            if(loss == 0) break;
             continue;
         }
-        else if(yakiR * (100 + time.elapsed()) > 100*(randint()%yakiR)){
+        else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
             // force Next
             continue;
         }

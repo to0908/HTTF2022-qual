@@ -9,7 +9,7 @@ mkdir out
 
 st=0
 en=20
-procs=0
+procs=3
 
 calc() {
   ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/$1.txt > out/$1.txt 2> scores/$1.txt
