@@ -9,10 +9,26 @@
     - 10th ymatsuxさん  
     https://ymatsux-cp-ja.blogspot.com/2021/06/atcoder-heuristic-contest-003-10.html
 
+- K個の特徴量と今までにやったタスク数をサンプル数Nとして、targetがそのタスクにかかった日数とする機械学習モデルを立てられると良い。
+    - taskをjとして、i番目のskillパラメータをs_iで表すと, 
+        - predicted Day = max(1, sum( max(0, d_i - s_i) ) + r_j)
+        - 最小化したい損失関数 :
+            - Loss = sum_j( abs( target_j - max(1, sum_i( max(0, d_i - s_i) ) + r_j) ) )
+        - task_i の 乱数 r_i を特定するのは難しそうなので、Lossを簡易化すると、
+            - Loss = sum_i( abs( target_i - sum_j( max(0, d_j - s_j) ) ) )
+        - これ、absがあるとLossの計算が難しい？ので、二乗誤差にしたりするのか、なんかそれはそうだな
+            - Loss = sum_i ( (target_i - sum_j( max(0, d_j - s_j) ) ) ^ 2 )
+        - こうなると単純なLinear Regressionだよね
+    - 新しいデータが追加されるたびに学習モデルを更新したい気持ちになる
+    - NN もしくは古典的なモデルで、高速なもの
+
 - パラメータ復元
     - スキル: 20人 * K = 400個
     - s の生成に用いる式の分子 randdouble(20, 60)  
+    - 各タスクにおいて、かかる日数にノイズが入り、それが -3 ~ 3 日 (N個)
+    - しかし、タスクにかかる日数のノイズ成分を予測したいとは思わない。
     -> 401個？
+    - 分子のranddoubleを復元せず、400個でいいか？
 
 
 - 標準正規分布の絶対値から生成される  
