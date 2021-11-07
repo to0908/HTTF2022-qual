@@ -35,7 +35,7 @@ vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 priority_queue<array<int,2>> taskQue; // {依存カウント, task}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
-vector<array<int,2>> working(M, {-1, -1}); // {task, day}
+vector<array<int,2>> working(M, {-1, -1}); // {task, 開始したday}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
 
@@ -44,6 +44,7 @@ int estimateDay(int person, int task){
     for(int i=0;i<K;i++) {
         est += max(0, d[task][i] - skill[person][i]);
     }
+    // cerr << "estimate " << person << " " << task << " " << est << endl;
     return max(1, est);
 }
 int calcLoss(int person){
@@ -55,12 +56,12 @@ int calcLoss(int person){
     }
     // Ridge
     for(int i=0;i<K;i++){
-        loss += skill[person][i] * skill[person][i] * 0.5 * (int)doneTask[person].size();
+        loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size();
     }
     return loss;
 }
 
-void estimateSkill(int person){
+void estimateSkill(int person, Timer &time){
     // 返ってきた情報から、スキルを推定(推定値を更新)する
     // 最尤推定とかやりたいね
 
@@ -77,14 +78,14 @@ void estimateSkill(int person){
             break;
         }
     }
-    // const int yakiR = 1000;
+    const int yakiR = 1500;
     vector<int> bestSkill = skill[person];
-    int iter=100;
+    int iter=1000;
     while(iter--){
         int p = randint() % K;
-        int inc = randint() % 2;
+        int inc = randint() % 5;
         bool dec = false;
-        if(notZero < Kdiv2 or inc) {
+        if(notZero < Kdiv2 or inc==0) {
             if(skill[person][p] == 0) notZero++;
             skill[person][p]++;
         }
@@ -100,15 +101,17 @@ void estimateSkill(int person){
             bestSkill = skill[person];
             continue;
         }
-        // else if(yakiR * iter > 100*(randint()%yakiR);){
-        //     // force Next
-        // }
+        else if(yakiR * (100 + time.elapsed()) > 100*(randint()%yakiR)){
+            // force Next
+            continue;
+        }
         else {
             if(dec) skill[person][p]++;
             else skill[person][p]--;
         }
     }
     skill[person] = bestSkill;
+    cout << "#s " << person + 1 << " " << skill[person] << endl;
 }
 
 void assignTask(){
@@ -129,7 +132,7 @@ void assignTask(){
         if(idx != -1){
             ans.emplace_back(idx + 1);
             ans.emplace_back(taskQue.top()[1] + 1);
-            working[idx] = {taskQue.top()[1], mi};
+            working[idx] = {taskQue.top()[1], day};
             sz++;
             taskQue.pop();
         }
@@ -148,13 +151,13 @@ void assignTask(){
     cout << ans << endl;
 }
 
-bool dayEnd(){
+bool dayEnd(Timer &time){
     int n; cin>>n;
     if(n == -1) return true;
     for(int i=0;i<n;i++){
         int person; cin>>person; person--;
         int task = working[person][0];
-        estimateSkill(person);
+        estimateSkill(person, time);
         for(auto x:v[task]){
             rCnt[x]--;
             if(rCnt[x] == 0) {
@@ -166,7 +169,7 @@ bool dayEnd(){
     return false;
 }
 
-void solve(){
+void solve(Timer &time){
     for(auto v1:v){
         for(auto i:v1){
             rCnt[i]++;
@@ -179,7 +182,7 @@ void solve(){
     }
     while(true){
         assignTask();
-        if(dayEnd()) return;
+        if(dayEnd(time)) return;
         day++;
     }
 }
@@ -215,7 +218,7 @@ signed main(){
         rev[b].emplace_back(a);
     }
 
-    solve();
+    solve(time);
 
     cerr << "[time] " << time.elapsed() << " ms"<< endl;
 }
