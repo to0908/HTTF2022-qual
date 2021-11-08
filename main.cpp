@@ -35,6 +35,7 @@ vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 priority_queue<array<int,2>> taskQue; // {依存カウント, task}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
+vector<int> descendants(N); // 子孫の数
 vector<array<int,2>> working(M, {-1, -1}); // {task, 開始したday}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
@@ -44,7 +45,6 @@ int estimateDay(int person, int task){
     for(int i=0;i<K;i++) {
         est += max(0, d[task][i] - skill[person][i]);
     }
-    // cerr << "estimate " << person << " " << task << " " << est << endl;
     return max(1, est);
 }
 int calcLoss(int person){
@@ -53,12 +53,10 @@ int calcLoss(int person){
     for(auto [task, past]: doneTask[person]){
         int est = estimateDay(person, task);
         loss += (past - est) * (past - est);
-        // if(person == 1)
-        //     cerr << "LOSS " << day << " " << task << " " << past << " " << est << " " << (past - est) * (past - est) << endl;
     }
     // Ridge
     // for(int i=0;i<K;i++){
-    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size();
+    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size() * 0.5;
     // }
     return loss;
 }
@@ -86,6 +84,7 @@ void estimateSkill(int person, Timer &time){
     const int yakiR = 1500;
     vector<int> bestSkill = skill[person];
     int iter=1000;
+    bool changed = false;
     while(iter--){
         int p = randint() % K;
         int inc = randint() % 5;
@@ -102,7 +101,7 @@ void estimateSkill(int person, Timer &time){
         }
         int lossNext = calcLoss(person);
         if(lossNext < loss){
-            // cerr << person << " " << loss << " " << lossNext << endl;
+            changed = true;
             loss = lossNext;
             bestSkill = skill[person];
             if(loss == 0) break;
@@ -118,13 +117,10 @@ void estimateSkill(int person, Timer &time){
         }
     }
     skill[person] = bestSkill;
-    cout << "#s " << person + 1 << " " << skill[person] << endl;
+    if(changed) cout << "#s " << person + 1 << " " << skill[person] << endl;
 }
 
 void assignTask(){
-    // 現在のスキルの推定値から、最適なタスクの割り当てを行う
-    // 将来的なものも考えるべき？(今空いているけど数日後に帰ってくるであろう完了タスクにより開放されるタスクに割り当てる方が良いなど)
-    // とりあえず今は考えずに、そのターンで最も良いものを割り当てることにする。
 
     vector<int> ans;
     int sz = 0;
@@ -145,15 +141,6 @@ void assignTask(){
         }
         else break;
     }
-    // for(int i=0;i<M;i++){
-    //     if(taskQue.empty()) break;
-    //     if(working[i][0] != -1) continue;
-    //     ans.emplace_back(i + 1);
-    //     ans.emplace_back(taskQue.top()[1] + 1);
-    //     working[i] = {taskQue.top()[1], day};
-    //     taskQue.pop();
-    //     sz++;
-    // }
     cout << sz << " ";
     cout << ans << endl;
 }
@@ -177,14 +164,9 @@ bool dayEnd(Timer &time){
 }
 
 void solve(Timer &time){
-    for(auto v1:v){
-        for(auto i:v1){
-            rCnt[i]++;
-        }
-    }
     for(int i=0;i<N;i++){
         if(rCnt[i] == 0){
-            taskQue.push({(int)v[i].size(), i});
+            taskQue.push({descendants[i], i});
         }
     }
     while(true){
@@ -202,6 +184,31 @@ void init(){
             skill[i][j] = max(1, (int)randint() % 15);
         }
     }
+    int cnt[N] = {};
+    queue<int> q;
+    // そのタスクをするのに必要な残りタスクの数
+    for(int i=0;i<N;i++){
+        rCnt[i] = rev[i].size();
+        cnt[i] = v[i].size();
+        if(cnt[i] == 0) q.push(i);
+    }
+    // 子孫の数
+    for(int i=0;i<N;i++){
+        queue<int> q;
+        bool used[N]={};
+        q.push(i);
+        while(q.size()){
+            int p = q.front(); q.pop();
+            descendants[i]++;
+            for(auto x:v[p]){
+                if(!used[x]){
+                    used[x] = 1;
+                    q.push(x);
+                }
+            }
+        }
+        descendants[i]--;
+    }
 }
 
 signed main(){
@@ -212,7 +219,6 @@ signed main(){
 
     cin>>K>>K>>K>>R;
     Kdiv2 = K / 2;
-    init();
     for(int i=0;i<N;i++){
         d[i].resize(K);
         for(int j=0;j<K;j++) cin>>d[i][j];
@@ -224,7 +230,7 @@ signed main(){
         v[a].emplace_back(b);
         rev[b].emplace_back(a);
     }
-
+    init();
     solve(time);
 
     cerr << "[time] " << time.elapsed() << " ms"<< endl;

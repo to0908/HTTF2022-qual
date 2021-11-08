@@ -19,4 +19,4 @@ if __name__ == '__main__':
 
     print("sum:", sum)
     print("mean:", sum / cnt)
-    print("estimated 50 case score:", sum * 50 / cnt)
+    print("estimated 50 case score:", sum * 50 / cnt - 4000)
