@@ -10,6 +10,7 @@ mkdir out
 st=0
 en=20
 procs=0
+slep=8
 
 calc() {
   ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/$1.txt > out/$1.txt 2> scores/$1.txt
@@ -22,10 +23,11 @@ while getopts "j:J" optKey; do
   case "$optKey" in
     J)
       en=149
+      slep=90
       ;;
   esac
 done
 
-seq -f '%04g' $st $en | xargs -n1 -P$procs -I{} bash -c "calc {}"
+seq -f '%04g' $st $en | xargs -n1 -P$procs -I{} bash -c "calc {}" & sleep $slep
 
 python3 scoreSum.py
