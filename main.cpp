@@ -135,6 +135,19 @@ vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx,
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 
 ///////////// Worker /////////
+// struct Worker{
+//     int task, startDay, estimateDay;
+//     vector<int> skill;
+//     int norm;
+//     // Worker(int k):skill(k){};
+//     Worker(vector<int> &s):skill(s){};
+//     void startWorking(int &t, int &est){
+//         task = t;
+//         startDay = day;
+//         estimateDay = est;
+//     }
+//     void changeSkill(){}
+// };
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<int> WorkerNorm(M);
