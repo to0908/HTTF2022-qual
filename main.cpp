@@ -133,7 +133,7 @@ vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
 vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
-
+int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
 // struct Worker{
 //     int task, startDay, estimateDay;
@@ -185,16 +185,20 @@ int calcL2norm(vector<int> &v, bool isSqrt=true){
 }
 
 void estimateSkill(const int person, Timer &time){
-    // TODO: ずれの方向から、焼きなましの方向を決める
+    // TODO: ずれの方向から、焼きなましの方向を決める。
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
+    int positiveGrad = 2 * ((past - working[person][2]) < 0);
     bool changed = false;
     if(gap > 15){
         changed = true;
-        for(int i=0;i<K;i++) skill[person][i] = randint() % randMa;
+        for(int i=0;i<K;i++) {
+            skill[person][i] = randint() % randMa - 2 * (positiveGrad == 0);
+            chmax(skill[person][i], 1);
+        }
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
     int loss = calcLoss(person);
@@ -210,7 +214,7 @@ void estimateSkill(const int person, Timer &time){
     int iter=1000;
     while(iter--){
         int p = randint() % K;
-        int inc = randint() % 3;
+        int inc = randint() % (4 - positiveGrad);
         bool dec = false;
         if(notZero < Kdiv2 or inc==0) {
             if(skill[person][p] == 0) notZero++;
@@ -284,7 +288,7 @@ void assignTask(){
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!taskQue[LARGE].empty() && doLargeTask < doneTaskCount) {
+            else if(!taskQue[LARGE].empty() && notReleased > 20) {
                 auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
                 addAns(ans, sz, person, task);
             }
@@ -321,6 +325,7 @@ bool dayEnd(Timer &time){
         for(auto x:v[task]){
             rCnt[x]--;
             if(rCnt[x] == 0) {
+                notReleased--;
                 if(v[x].size() == 0) freeTaskQue.push({taskWeight[x][1], x});
                 else{
                     taskQue[taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold].push(
@@ -399,9 +404,11 @@ void init(){
     int INF = 1e9 + 7;
     for(int i=0;i<N;i++) {
         if(rCnt[i] == 0 && cnt[i] == 0) {
+            notReleased--;
             freeTaskQue.push({taskWeight[i][1], i});
         }
         else if(rCnt[i] == 0) {
+            notReleased--;
             int sum = taskWeight[i][0] + taskWeight[i][1];
             if(-taskWeight[i][0] + taskWeight[i][1] < th){
                 taskQue[sum > th2].push({INF + taskWeight[i][0] - taskWeight[i][1], i});
