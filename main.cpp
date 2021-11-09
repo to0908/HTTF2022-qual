@@ -35,10 +35,11 @@ vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 priority_queue<array<int,2>> taskQue; // {依存カウント, task}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
-vector<int> descendants(N); // 子孫の数
-vector<array<int,2>> working(M, {-1, -1}); // {task, 開始したday}
+vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
+vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
+int doneTaskCount = 0, doneTaskThreshold = 700; // 終わったタスクの数
 
 int estimateDay(int person, int task){
     int est = 0;
@@ -68,8 +69,10 @@ void estimateSkill(int person, Timer &time){
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
-    int gap = abs(past - estimateDay(person, working[person][0]));
+    int gap = abs(past - working[person][2]);
+    bool changed = false;
     if(gap > 15){
+        changed = true;
         for(int i=0;i<K;i++) skill[person][i] = randint() % 15;
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
@@ -84,10 +87,9 @@ void estimateSkill(int person, Timer &time){
     const int yakiR = 1500;
     vector<int> bestSkill = skill[person];
     int iter=1000;
-    bool changed = false;
     while(iter--){
         int p = randint() % K;
-        int inc = randint() % 5;
+        int inc = randint() % 3;
         bool dec = false;
         if(notZero < Kdiv2 or inc==0) {
             if(skill[person][p] == 0) notZero++;
@@ -135,7 +137,7 @@ void assignTask(){
         if(idx != -1){
             ans.emplace_back(idx + 1);
             ans.emplace_back(taskQue.top()[1] + 1);
-            working[idx] = {taskQue.top()[1], day};
+            working[idx] = {taskQue.top()[1], day, mi};
             sz++;
             taskQue.pop();
         }
@@ -148,6 +150,7 @@ void assignTask(){
 bool dayEnd(Timer &time){
     int n; cin>>n;
     if(n == -1) return true;
+    doneTaskCount += n;
     for(int i=0;i<n;i++){
         int person; cin>>person; person--;
         int task = working[person][0];
@@ -155,10 +158,10 @@ bool dayEnd(Timer &time){
         for(auto x:v[task]){
             rCnt[x]--;
             if(rCnt[x] == 0) {
-                taskQue.push({(int)v[x].size(), x});
+                taskQue.push({taskWeight[x][0] + taskWeight[x][1] * (doneTaskCount <= doneTaskThreshold), x});
             }
         }
-        working[person] = {-1, -1};
+        working[person] = {-1, -1, -1};
     }
     return false;
 }
@@ -166,7 +169,7 @@ bool dayEnd(Timer &time){
 void solve(Timer &time){
     for(int i=0;i<N;i++){
         if(rCnt[i] == 0){
-            taskQue.push({descendants[i], i});
+            taskQue.push({taskWeight[i][0] + taskWeight[i][1], i});
         }
     }
     while(true){
@@ -199,7 +202,7 @@ void init(){
         q.push(i);
         while(q.size()){
             int p = q.front(); q.pop();
-            descendants[i]++;
+            taskWeight[i][0]++;
             for(auto x:v[p]){
                 if(!used[x]){
                     used[x] = 1;
@@ -207,7 +210,13 @@ void init(){
                 }
             }
         }
-        descendants[i]--;
+        taskWeight[i][0]--;
+        int sum = 0;
+        for(int j=0;j<K;j++){
+            sum += d[i][j] * d[i][j];
+        }
+        taskWeight[i][1] = sqrt(sum);
+        // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
 }
 
