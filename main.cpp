@@ -34,12 +34,13 @@ int K, R, Kdiv2;
 vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 priority_queue<array<int,2>> taskQue; // {依存カウント, task}
+priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
 vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
-int doneTaskCount = 0, doneTaskThreshold = 700; // 終わったタスクの数
+int doneTaskCount = 0, doneTaskThreshold = 1700; // 終わったタスクの数
 
 int estimateDay(int person, int task){
     int est = 0;
@@ -60,6 +61,13 @@ int calcLoss(int person){
     //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size() * 0.5;
     // }
     return loss;
+}
+
+int calcL2norm(vector<int> &v, bool isSqrt=true){
+    int sum = 0;
+    for(auto i:v) sum += i * i;
+    if(isSqrt) sum = sqrt(sum);
+    return sum;
 }
 
 void estimateSkill(int person, Timer &time){
@@ -119,6 +127,7 @@ void estimateSkill(int person, Timer &time){
         }
     }
     skill[person] = bestSkill;
+    workerQue.push({calcL2norm(skill[person],false), person});
     if(changed) cout << "#s " << person + 1 << " " << skill[person] << endl;
 }
 
@@ -127,21 +136,29 @@ void assignTask(){
     vector<int> ans;
     int sz = 0;
     while(taskQue.size()){
-        int mi = 1e9;
-        int idx = -1;
-        for(int i=0;i<M;i++){
-            if(working[i][0] != -1) continue;
-            int est = estimateDay(i, taskQue.top()[1]);
-            if(chmin(mi, est)) idx = i;
-        }
-        if(idx != -1){
-            ans.emplace_back(idx + 1);
-            ans.emplace_back(taskQue.top()[1] + 1);
-            working[idx] = {taskQue.top()[1], day, mi};
-            sz++;
-            taskQue.pop();
-        }
-        else break;
+        if(workerQue.empty()) break;
+        auto [norm, person] = workerQue.top(); workerQue.pop();
+        auto [weight, task] = taskQue.top(); taskQue.pop();
+        working[person] = {task, day, estimateDay(person, task)};
+        ans.emplace_back(person+1);
+        ans.emplace_back(task+1);
+        sz++;
+
+        // int mi = 1e9;
+        // int idx = -1;
+        // for(int i=0;i<M;i++){
+        //     if(working[i][0] != -1) continue;
+        //     int est = estimateDay(i, taskQue.top()[1]);
+        //     if(chmin(mi, est)) idx = i;
+        // }
+        // if(idx != -1){
+        //     ans.emplace_back(idx + 1);
+        //     ans.emplace_back(taskQue.top()[1] + 1);
+        //     working[idx] = {taskQue.top()[1], day, mi};
+        //     sz++;
+        //     taskQue.pop();
+        // }
+        // else break;
     }
     cout << sz << " ";
     cout << ans << endl;
@@ -183,9 +200,12 @@ void init(){
     // skillの初期化
     for(int i=0;i<M;i++){
         skill[i].resize(K);
+        int sum = 0;
         for(int j=0;j<K;j++){
             skill[i][j] = max(1, (int)randint() % 15);
+            sum += skill[i][j] * skill[i][j];
         }
+        workerQue.push({sum, i});
     }
     int cnt[N] = {};
     queue<int> q;
@@ -211,11 +231,7 @@ void init(){
             }
         }
         taskWeight[i][0]--;
-        int sum = 0;
-        for(int j=0;j<K;j++){
-            sum += d[i][j] * d[i][j];
-        }
-        taskWeight[i][1] = sqrt(sum);
+        taskWeight[i][1] = calcL2norm(d[i]);
         // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
 }
@@ -227,6 +243,7 @@ signed main(){
     Timer time;
 
     cin>>K>>K>>K>>R;
+    // if(R >= 2000) doneTaskThreshold = 0;
     Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
