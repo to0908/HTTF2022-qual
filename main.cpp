@@ -184,7 +184,7 @@ int calcL2norm(vector<int> &v, bool isSqrt=true){
     return sum;
 }
 
-void estimateSkill(int person, Timer &time){
+void estimateSkill(const int person, Timer &time){
     // TODO: ずれの方向から、焼きなましの方向を決める
 
     // 今のday, working[person]の情報から更新
@@ -277,6 +277,7 @@ void assignTask(){
                 auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
                 addAns(ans, sz, person, task);
             }
+            else break;
         }
         else{
             if(!taskQue[SMALL].empty()) {
@@ -291,6 +292,7 @@ void assignTask(){
                 auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
                 addAns(ans, sz, person, task);
             }
+            else break;
         }
         workerQue.pop();
     }
