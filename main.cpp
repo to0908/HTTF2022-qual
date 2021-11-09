@@ -41,7 +41,7 @@ vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノ�
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
-int doneTaskCount = 0, doneTaskThreshold = 1800, attenuate=0.7; // 終わったタスクの数
+int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 
 int estimateDay(int person, int task){
     int est = 0;
@@ -131,7 +131,7 @@ void estimateSkill(int person, Timer &time){
     workerQue.push({calcL2norm(skill[person],false), person});
     if(changed) cout << "#s " << person + 1 << " " << skill[person] << endl;
 }
-// 87331
+
 void assignTask(){
 
     vector<int> ans;
@@ -169,15 +169,6 @@ bool dayEnd(Timer &time){
 }
 
 void solve(Timer &time){
-    // int INF = 1e9 + 7;
-    for(int i=0;i<N;i++){
-        if(rCnt[i] == 0){
-            // 86331.
-            // taskQue.push({INF + taskWeight[i][0] - taskWeight[i][1] * 1000, i});
-            // 86990
-            taskQue.push({taskWeight[i][0] + taskWeight[i][1], i});
-        }
-    }
     while(true){
         assignTask();
         if(dayEnd(time)) return;
@@ -199,13 +190,13 @@ void init(){
     int cnt[N] = {};
     queue<int> q;
     // そのタスクをするのに必要な残りタスクの数
+    vector<int> initialTask;
     for(int i=0;i<N;i++){
         rCnt[i] = rev[i].size();
         cnt[i] = v[i].size();
         if(cnt[i] == 0) q.push(i);
-    }
-    // 子孫の数
-    for(int i=0;i<N;i++){
+
+        // タスクの重み計算
         queue<int> q;
         bool used[N]={};
         q.push(i);
@@ -221,7 +212,24 @@ void init(){
         }
         taskWeight[i][0]--;
         taskWeight[i][1] = calcL2norm(d[i]);
+        if(rCnt[i] == 0){
+            initialTask.emplace_back(-taskWeight[i][0] + taskWeight[i][1]);
+        }
         // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
+    }
+    sort(all(initialTask));
+    int itcnt = initialTask.size();
+    int th = initialTask[itcnt / 2];
+    int INF = 1e9 + 7;
+    for(int i=0;i<N;i++){
+        if(rCnt[i] == 0){
+            if(-taskWeight[i][0] + taskWeight[i][1] < th){
+                taskQue.push({INF + taskWeight[i][0] - taskWeight[i][1], i});
+            }
+            else{
+                taskQue.push({taskWeight[i][0] + taskWeight[i][1], i});
+            }
+        }
     }
 }
 
