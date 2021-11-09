@@ -31,6 +31,7 @@ unsigned int randint() {
 
 const int N = 1000, M = 20;
 int K, R, Kdiv2;
+int randMa;
 vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 priority_queue<array<int,2>> taskQue; // {依存カウント, task}
@@ -40,7 +41,7 @@ vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノ�
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int day = 0; // 現在の日数
-int doneTaskCount = 0, doneTaskThreshold = 1700; // 終わったタスクの数
+int doneTaskCount = 0, doneTaskThreshold = 1800, attenuate=0.7; // 終わったタスクの数
 
 int estimateDay(int person, int task){
     int est = 0;
@@ -81,7 +82,7 @@ void estimateSkill(int person, Timer &time){
     bool changed = false;
     if(gap > 15){
         changed = true;
-        for(int i=0;i<K;i++) skill[person][i] = randint() % 15;
+        for(int i=0;i<K;i++) skill[person][i] = randint() % randMa;
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
     int loss = calcLoss(person);
@@ -130,7 +131,7 @@ void estimateSkill(int person, Timer &time){
     workerQue.push({calcL2norm(skill[person],false), person});
     if(changed) cout << "#s " << person + 1 << " " << skill[person] << endl;
 }
-
+// 87331
 void assignTask(){
 
     vector<int> ans;
@@ -143,22 +144,6 @@ void assignTask(){
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
         sz++;
-
-        // int mi = 1e9;
-        // int idx = -1;
-        // for(int i=0;i<M;i++){
-        //     if(working[i][0] != -1) continue;
-        //     int est = estimateDay(i, taskQue.top()[1]);
-        //     if(chmin(mi, est)) idx = i;
-        // }
-        // if(idx != -1){
-        //     ans.emplace_back(idx + 1);
-        //     ans.emplace_back(taskQue.top()[1] + 1);
-        //     working[idx] = {taskQue.top()[1], day, mi};
-        //     sz++;
-        //     taskQue.pop();
-        // }
-        // else break;
     }
     cout << sz << " ";
     cout << ans << endl;
@@ -175,7 +160,7 @@ bool dayEnd(Timer &time){
         for(auto x:v[task]){
             rCnt[x]--;
             if(rCnt[x] == 0) {
-                taskQue.push({taskWeight[x][0] + taskWeight[x][1] * (doneTaskCount <= doneTaskThreshold), x});
+                taskQue.push({taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x});
             }
         }
         working[person] = {-1, -1, -1};
@@ -184,8 +169,12 @@ bool dayEnd(Timer &time){
 }
 
 void solve(Timer &time){
+    // int INF = 1e9 + 7;
     for(int i=0;i<N;i++){
         if(rCnt[i] == 0){
+            // 86331.
+            // taskQue.push({INF + taskWeight[i][0] - taskWeight[i][1] * 1000, i});
+            // 86990
             taskQue.push({taskWeight[i][0] + taskWeight[i][1], i});
         }
     }
@@ -202,7 +191,7 @@ void init(){
         skill[i].resize(K);
         int sum = 0;
         for(int j=0;j<K;j++){
-            skill[i][j] = max(1, (int)randint() % 15);
+            skill[i][j] = max(1, (int)randint() % randMa);
             sum += skill[i][j] * skill[i][j];
         }
         workerQue.push({sum, i});
@@ -247,8 +236,13 @@ signed main(){
     Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
-        for(int j=0;j<K;j++) cin>>d[i][j];
+        for(int j=0;j<K;j++){
+            cin>>d[i][j];
+            chmax(randMa, d[i][j]);
+        }
     }
+    chmax(randMa, 30);
+    randMa /= 2;
     for(int i=0;i<R;i++){
         int a,b;
         cin>>a>>b;
