@@ -23,7 +23,7 @@ while getopts "j:J" optKey; do
   case "$optKey" in
     J)
       en=149
-      slep=95
+      slep=100
       ;;
   esac
 done

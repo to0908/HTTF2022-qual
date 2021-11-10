@@ -134,6 +134,7 @@ int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わった�
 int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
 int remainWorker = M;
+vector<vector<int>> minimumSkill(M);
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<double> WorkerNorm(M);
 MedianManager<double> WorkerNormMedian;
@@ -153,7 +154,7 @@ double calcLoss(int person){
     double loss = 0;
     // Mean Square Error
     for(auto [task, past]: doneTask[person]){
-        int est = estimateDay(person, task);
+        double est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
     // Ridge
@@ -185,6 +186,11 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
+    if(past == 1) {
+        for(int i=0;i<K;i++){
+            chmax(minimumSkill[person][i], d[working[person][0]][i]);
+        }
+    }
     working[person] = {-1, -1, -1};
     if(gap == 0) return;
     
@@ -196,10 +202,24 @@ void estimateSkill(const int person, Timer &time){
             double est = estimateDay(person, task);
             double gap = est - cost;
             if(gap < eps) continue;
+            // bool over = gap > 0;
+            gap /= 100;
             for(int i=0;i<K;i++){
                 // d>sか、over/under estimateで場合分けをして変える方が良い？
-                skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
-                chmax(skill[person][i], 0.0);
+                skill[person][i] += (d[task][i] - skill[person][i]) * gap;
+                // if(d[task][i] > skill[person][i]) {
+                //     if(over) skill[person][i] += gap;
+                //     else skill[person][i] -= gap;
+                // }
+                // else {
+                //     if(over) {
+                //         int k = randint() % 3;
+                //         if(k == 2) k = -1;
+                //         skill[person][i] += gap * k;
+                //     }
+                //     else skill[person][i] -= gap;
+                // }
+                chmax(skill[person][i], minimumSkill[person][i]);
             }
         }
     }
@@ -212,8 +232,9 @@ void estimateSkill(const int person, Timer &time){
             break;
         }
     }
-    const int yakiR = 1500;
     vector<double> bestSkill = skill[person];
+
+    const int yakiR = 1500;
     int iter=1000;
     while(iter--){
         int p = randint() % K;
@@ -246,6 +267,10 @@ void estimateSkill(const int person, Timer &time){
             else skill[person][p]--;
         }
     }
+    for(int i=0;i<K;i++) {
+        chmax(bestSkill[i], minimumSkill[person][i]);
+    }
+    
     int norm = WorkerNorm[person];
     if(changed) {
         WorkerNormMedian.erase(norm);
@@ -332,6 +357,7 @@ void init(){
     // skillの初期化
     for(int i=0;i<M;i++){
         skill[i].resize(K);
+        minimumSkill[i].resize(K);
         int sum = 0;
         for(int j=0;j<K;j++){
             skill[i][j] = max(1, (int)randint() % randMa);
