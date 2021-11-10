@@ -127,6 +127,7 @@ int day = 0; // 現在の日数
 
 ////////////// Task //////////
 int taskLSThreshold;
+vector<vector<int>> minimumSkill(M);
 priority_queue<array<int,2>> taskQue[2]; // [LARGE/SMALL]{重要度, task index}
 priority_queue<array<int,2>> freeTaskQue; // (v.size()==0),下のタスクがないもの {重要度, task index}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
@@ -135,19 +136,6 @@ vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx,
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
-// struct Worker{
-//     int task, startDay, estimateDay;
-//     vector<int> skill;
-//     int norm;
-//     // Worker(int k):skill(k){};
-//     Worker(vector<int> &s):skill(s){};
-//     void startWorking(int &t, int &est){
-//         task = t;
-//         startDay = day;
-//         estimateDay = est;
-//     }
-//     void changeSkill(){}
-// };
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<double> WorkerNorm(M);
@@ -167,7 +155,7 @@ double calcLoss(int person){
     double loss = 0;
     // Mean Square Error
     for(auto [task, past]: doneTask[person]){
-        int est = estimateDay(person, task);
+        double est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
     // Ridge
@@ -198,6 +186,11 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
+    if(past == 1) {
+        for(int i=0;i<K;i++){
+            chmax(minimumSkill[person][i], d[working[person][0]][i]);
+        }
+    }
     if(gap == 0){
         int norm = WorkerNorm[person];
         workerQue.push({norm, person});
@@ -212,8 +205,9 @@ void estimateSkill(const int person, Timer &time){
             double gap = est - cost;
             if(gap < eps) continue;
             for(int i=0;i<K;i++){
+                // 88344
                 skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
-                chmax(skill[person][i], 0.0);
+                chmax(skill[person][i], minimumSkill[person][i]);
             }
         }
     }
@@ -259,6 +253,9 @@ void estimateSkill(const int person, Timer &time){
             if(dec) skill[person][p]++;
             else skill[person][p]--;
         }
+    }
+    for(int i=0;i<K;i++) {
+        chmax(bestSkill[i], minimumSkill[person][i]);
     }
     int norm = WorkerNorm[person];
     if(changed) {
@@ -358,6 +355,7 @@ void init(){
     // skillの初期化
     for(int i=0;i<M;i++){
         skill[i].resize(K);
+        minimumSkill[i].resize(K);
         int sum = 0;
         for(int j=0;j<K;j++){
             skill[i][j] = max(1, (int)randint() % randMa);
