@@ -120,7 +120,8 @@ private:
 
 const int N = 1000, M = 20, LARGE=1, SMALL=0;
 int K, R, Kdiv2, randMa;
-vector<vector<int>> d(N), skill(M); // 問題のd, s
+vector<vector<int>> d(N);
+vector<vector<double>> skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
 
@@ -149,21 +150,21 @@ int notReleased = N; // まだ開始することができない残りの仕事�
 // };
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
-vector<int> WorkerNorm(M);
-MedianManager<int> WorkerNormMedian;
+vector<double> WorkerNorm(M);
+MedianManager<double> WorkerNormMedian;
 int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
 
 
-int estimateDay(int person, int task){
-    int est = 0;
+double estimateDay(int person, int task){
+    double est = 0;
     for(int i=0;i<K;i++) {
-        est += max(0, d[task][i] - skill[person][i]);
+        est += max(0.0, d[task][i] - skill[person][i]);
     }
-    return max(1, est);
+    return max(1.0, est);
 }
-int calcLoss(int person){
-    int loss = 0;
+double calcLoss(int person){
+    double loss = 0;
     // Mean Square Error
     for(auto [task, past]: doneTask[person]){
         int est = estimateDay(person, task);
@@ -176,13 +177,20 @@ int calcLoss(int person){
     return loss;
 }
 
+double calcL2norm(vector<double> &v, bool isSqrt=true){
+    double sum = 0;
+    for(auto i:v) sum += i * i;
+    if(isSqrt) sum = sqrt(sum);
+    return sum;
+}
 int calcL2norm(vector<int> &v, bool isSqrt=true){
-    int sum = 0;
+    double sum = 0;
     for(auto i:v) sum += i * i;
     if(isSqrt) sum = sqrt(sum);
     return sum;
 }
 
+const double eps = 0.5;
 void estimateSkill(const int person, Timer &time){
     // TODO: ずれの方向から、焼きなましの方向を決める。
 
@@ -190,25 +198,23 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    // int positiveGrad = 2 * ((past - working[person][2]) < 0);
+    if(gap == 0){
+        int norm = WorkerNorm[person];
+        workerQue.push({norm, person});
+        return;
+    }
     bool changed = false;
-    if(gap > 15){
+    int hoge = 100;
+    while(hoge--){
         changed = true;
-        for(int i=0;i<K;i++) {
-            // 88400
-            // 88697.0
-            // 88611
-            // 88715.6
-            double x = 0;
-            for(auto dt:doneTask[person]) {
-                auto [tsk,da] = dt;
-                x += d[tsk][i] * (8.0 - da) / 8.0;
+        for(auto [task, cost]:doneTask[person]){
+            double est = estimateDay(person, task);
+            double gap = est - cost;
+            if(gap < eps) continue;
+            for(int i=0;i<K;i++){
+                skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
+                chmax(skill[person][i], 0.0);
             }
-            x = (x + (int)doneTask.size() - 1) / (int)doneTask.size();
-            skill[person][i] = int(x);
-            chmax(skill[person][i], 1);
-            // skill[person][i] = randint() % randMa - 2 * (positiveGrad == 0);
-            // chmax(skill[person][i], 1);
         }
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
@@ -221,7 +227,7 @@ void estimateSkill(const int person, Timer &time){
         }
     }
     const int yakiR = 1500;
-    vector<int> bestSkill = skill[person];
+    vector<double> bestSkill = skill[person];
     int iter=1000;
     while(iter--){
         int p = randint() % K;
@@ -271,7 +277,7 @@ void assignTask(){
     vector<int> ans;
     int sz = 0;
     auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
-        working[person] = {task, day, estimateDay(person, task)};
+        working[person] = {task, day, (int)estimateDay(person, task)};
         sz++;
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
@@ -299,7 +305,7 @@ void assignTask(){
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!taskQue[LARGE].empty() && notReleased > 20) {
+            else if(!taskQue[LARGE].empty()) {
                 auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
                 addAns(ans, sz, person, task);
             }
@@ -429,7 +435,6 @@ signed main(){
     Timer time;
 
     cin>>K>>K>>K>>R;
-    // if(R >= 2000) doneTaskThreshold = 0;
     Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
