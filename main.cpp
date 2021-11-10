@@ -190,13 +190,25 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    int positiveGrad = 2 * ((past - working[person][2]) < 0);
+    // int positiveGrad = 2 * ((past - working[person][2]) < 0);
     bool changed = false;
     if(gap > 15){
         changed = true;
         for(int i=0;i<K;i++) {
-            skill[person][i] = randint() % randMa - 2 * (positiveGrad == 0);
+            // 88400
+            // 88697.0
+            // 88611
+            // 88715.6
+            double x = 0;
+            for(auto dt:doneTask[person]) {
+                auto [tsk,da] = dt;
+                x += d[tsk][i] * (8.0 - da) / 8.0;
+            }
+            x = (x + (int)doneTask.size() - 1) / (int)doneTask.size();
+            skill[person][i] = int(x);
             chmax(skill[person][i], 1);
+            // skill[person][i] = randint() % randMa - 2 * (positiveGrad == 0);
+            // chmax(skill[person][i], 1);
         }
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
@@ -213,7 +225,7 @@ void estimateSkill(const int person, Timer &time){
     int iter=1000;
     while(iter--){
         int p = randint() % K;
-        int inc = randint() % (4 - positiveGrad);
+        int inc = randint() % 2;
         bool dec = false;
         if(notZero < Kdiv2 or inc==0) {
             if(skill[person][p] == 0) notZero++;
