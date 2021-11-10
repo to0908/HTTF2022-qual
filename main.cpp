@@ -119,8 +119,7 @@ private:
 
 
 const int N = 1000, M = 20, LARGE=1, SMALL=0;
-int K, R, Kdiv2;
-int randMa;
+int K, R, Kdiv2, randMa;
 vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
@@ -300,16 +299,6 @@ void assignTask(){
         }
         workerQue.pop();
     }
-    
-    // while(taskQue.size()){
-    //     if(workerQue.empty()) break;
-    //     auto [norm, person] = workerQue.top(); workerQue.pop();
-    //     auto [weight, task] = taskQue.top(); taskQue.pop();
-    //     working[person] = {task, day, estimateDay(person, task)};
-    //     ans.emplace_back(person+1);
-    //     ans.emplace_back(task+1);
-    //     sz++;
-    // }
     cout << sz << " ";
     cout << ans << endl;
 }
