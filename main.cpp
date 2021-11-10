@@ -118,7 +118,7 @@ private:
 };
 
 
-const int N = 1000, M = 20, LARGE=1, SMALL=0;
+const int N = 1000, M = 20;
 int K, R, Kdiv2, randMa;
 vector<vector<int>> d(N);
 vector<vector<double>> skill(M); // 問題のd, s
@@ -126,32 +126,18 @@ vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
 
 ////////////// Task //////////
-int taskLSThreshold;
-priority_queue<array<int,2>> taskQue[2]; // [LARGE/SMALL]{重要度, task index}
-priority_queue<array<int,2>> freeTaskQue; // (v.size()==0),下のタスクがないもの {重要度, task index}
+priority_queue<array<int, 2>> taskQue; // {順番, task index}
+priority_queue<array<int, 2>> freeTaskQue; // 下のタスクがないもの {L2norm, task index}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
-vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
-vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
+vector<array<int,2>> taskWeight(N); // タスクの重み, {順番, L2norm}
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
-// struct Worker{
-//     int task, startDay, estimateDay;
-//     vector<int> skill;
-//     int norm;
-//     // Worker(int k):skill(k){};
-//     Worker(vector<int> &s):skill(s){};
-//     void startWorking(int &t, int &est){
-//         task = t;
-//         startDay = day;
-//         estimateDay = est;
-//     }
-//     void changeSkill(){}
-// };
-priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
+int remainWorker = M;
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<double> WorkerNorm(M);
 MedianManager<double> WorkerNormMedian;
+vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
 
@@ -192,17 +178,16 @@ int calcL2norm(vector<int> &v, bool isSqrt=true){
 
 const double eps = 0.5;
 void estimateSkill(const int person, Timer &time){
+    remainWorker++;
     // TODO: ずれの方向から、焼きなましの方向を決める。
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    if(gap == 0){
-        int norm = WorkerNorm[person];
-        workerQue.push({norm, person});
-        return;
-    }
+    working[person] = {-1, -1, -1};
+    if(gap == 0) return;
+    
     bool changed = false;
     int hoge = 100;
     while(hoge--){
@@ -212,6 +197,7 @@ void estimateSkill(const int person, Timer &time){
             double gap = est - cost;
             if(gap < eps) continue;
             for(int i=0;i<K;i++){
+                // d>sか、over/under estimateで場合分けをして変える方が良い？
                 skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
                 chmax(skill[person][i], 0.0);
             }
@@ -269,7 +255,6 @@ void estimateSkill(const int person, Timer &time){
         WorkerNorm[person] = norm;
         cout << "#s " << person + 1 << " " << skill[person] << endl;
     }
-    workerQue.push({norm, person});
 }
 
 void assignTask(){
@@ -283,39 +268,30 @@ void assignTask(){
         ans.emplace_back(task+1);
     };
 
-    while(workerQue.size()){
-        auto [norm, person] = workerQue.top();
-        if(norm >= WorkerNormMedian.get()) {
-            if(!taskQue[LARGE].empty()) {
-                auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
-                addAns(ans, sz, person, task);
-            }
-            else if(!taskQue[SMALL].empty()){
-                auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
-                addAns(ans, sz, person, task);
-            }
-            else if(!freeTaskQue.empty()){
-                auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
-            }
-            else break;
+    int workerCount = remainWorker;
+    priority_queue<array<int,2>> pq;
+    while(workerCount--) {
+        if(!taskQue.empty()){
+            auto [idx, task] = taskQue.top(); taskQue.pop();
+            pq.push({taskWeight[task][1] ,task});
         }
-        else{
-            if(!taskQue[SMALL].empty()) {
-                auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
-                addAns(ans, sz, person, task);
-            }
-            else if(!taskQue[LARGE].empty()) {
-                auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
-                addAns(ans, sz, person, task);
-            }
-            else if(!freeTaskQue.empty()){
-                auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
-            }
-            else break;
+        else if(!freeTaskQue.empty()){
+            auto [we, task] = freeTaskQue.top(); freeTaskQue.pop();
+            pq.push({we ,task});
         }
-        workerQue.pop();
+        else break;
+    }
+    while(pq.size()) {
+        auto [we, task] = pq.top(); pq.pop();
+        remainWorker--;
+        double mi = 1e9;
+        int idx = -1;
+        for(int i=0;i<M;i++){
+            if(working[i][0] != -1) continue;
+            if(chmin(mi, estimateDay(i, task))) idx = i;
+        }
+        working[idx] = {task, day, (int)mi};
+        addAns(ans, sz, idx, task);
     }
     cout << sz << " ";
     cout << ans << endl;
@@ -335,9 +311,7 @@ bool dayEnd(Timer &time){
                 notReleased--;
                 if(v[x].size() == 0) freeTaskQue.push({taskWeight[x][1], x});
                 else{
-                    taskQue[taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold].push(
-                        {taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x}
-                    );
+                    taskQue.push({taskWeight[x][0], x});
                 }
             }
         }
@@ -364,68 +338,37 @@ void init(){
             sum += skill[i][j] * skill[i][j];
         }
         WorkerNorm[i] = sum;
-        workerQue.push({sum, i});
         WorkerNormMedian.insert(sum);
     }
-    int cnt[N] = {};
+    int cnt[N]={};
     queue<int> q;
-    // そのタスクをするのに必要な残りタスクの数
-    vector<int> initialTask;
-    vector<int> allTask;
     for(int i=0;i<N;i++){
-        rCnt[i] = rev[i].size();
         cnt[i] = v[i].size();
-        if(cnt[i] == 0) q.push(i);
-
-        // タスクの重み計算
-        queue<int> q;
-        bool used[N]={};
-        q.push(i);
-        while(q.size()){
-            int p = q.front(); q.pop();
-            taskWeight[i][0]++;
-            for(auto x:v[p]){
-                if(!used[x]){
-                    used[x] = 1;
-                    q.push(x);
-                }
-            }
+        rCnt[i] = rev[i].size();
+        taskWeight[i][1] = calcL2norm(d[i], false);
+        if(v[i].size() == 0) {
+            q.push(i);
+            taskWeight[i][0] = -1;
+            if(rCnt[i] == 0) freeTaskQue.push({taskWeight[i][1], i});
+            continue;
         }
-        taskWeight[i][0]--;
-        taskWeight[i][1] = calcL2norm(d[i]);
-        {
-            taskWeight[i][0] *= R;
-            taskWeight[i][1] *= (4000 - R);
-        }
-        allTask.emplace_back(taskWeight[i][0] + taskWeight[i][1]);
-        if(rCnt[i] == 0){
-            initialTask.emplace_back(-taskWeight[i][0] + taskWeight[i][1]);
-        }
-        // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
-    sort(all(initialTask));
-    sort(all(allTask));
-    int itcnt = initialTask.size();
-    int th = initialTask[itcnt / 2];
-    int th2 = allTask[itcnt / 2];
-    int INF = 1e9 + 7;
-    for(int i=0;i<N;i++) {
-        if(rCnt[i] == 0 && cnt[i] == 0) {
-            notReleased--;
-            freeTaskQue.push({taskWeight[i][1], i});
+    int now = 0;
+    while(q.size()){
+        int p = q.front();
+        q.pop();
+        if(v[p].size() != 0) {
+            taskWeight[p][0] = now;
+            if(rev[p].size() == 0) taskQue.push({now, p});
+            now++;
         }
-        else if(rCnt[i] == 0) {
-            notReleased--;
-            int sum = taskWeight[i][0] + taskWeight[i][1];
-            if(-taskWeight[i][0] + taskWeight[i][1] < th){
-                taskQue[sum > th2].push({INF + taskWeight[i][0] - taskWeight[i][1], i});
-            }
-            else{
-                taskQue[sum > th2].push({taskWeight[i][0] + taskWeight[i][1], i});
+        for(auto i:rev[p]) {
+            cnt[i]--;
+            if(cnt[i] == 0){
+                q.push(i);
             }
         }
     }
-    taskLSThreshold = th2;
 }
 
 signed main(){
