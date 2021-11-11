@@ -186,45 +186,17 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    if(past == 1) {
-        for(int i=0;i<K;i++){
-            chmax(minimumSkill[person][i], d[working[person][0]][i]);
-        }
+    for(int i=0;i<K;i++){
+        chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
     }
     working[person] = {-1, -1, -1};
-    if(gap == 0) return;
-    
+    if(gap <= 2) return;
     bool changed = false;
-    int hoge = 100;
-    while(hoge--){
-        changed = true;
-        for(auto [task, cost]:doneTask[person]){
-            double est = estimateDay(person, task);
-            double gap = est - cost;
-            if(gap < eps) continue;
-            // bool over = gap > 0;
-            gap /= 100;
-            for(int i=0;i<K;i++){
-                // d>sか、over/under estimateで場合分けをして変える方が良い？
-                skill[person][i] += (d[task][i] - skill[person][i]) * gap;
-                // if(d[task][i] > skill[person][i]) {
-                //     if(over) skill[person][i] += gap;
-                //     else skill[person][i] -= gap;
-                // }
-                // else {
-                //     if(over) {
-                //         int k = randint() % 3;
-                //         if(k == 2) k = -1;
-                //         skill[person][i] += gap * k;
-                //     }
-                //     else skill[person][i] -= gap;
-                // }
-                chmax(skill[person][i], minimumSkill[person][i]);
-            }
-        }
-    }
+    changed=1;
+    for(int i=0;i<K;i++) skill[person][i] = minimumSkill[person][i];
+
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
-    int loss = calcLoss(person);
+    double loss = calcLoss(person);
     int notZero = 0;
     for(int i=0;i<K;i++){
         if(skill[person][i] != 0) {
@@ -240,7 +212,7 @@ void estimateSkill(const int person, Timer &time){
         int p = randint() % K;
         int inc = randint() % 2;
         bool dec = false;
-        if(notZero < Kdiv2 or inc==0) {
+        if(notZero < Kdiv2 or inc==0 or skill[person][p] == minimumSkill[person][p]) {
             if(skill[person][p] == 0) notZero++;
             skill[person][p]++;
         }
@@ -250,7 +222,7 @@ void estimateSkill(const int person, Timer &time){
             skill[person][p]--;
             if(skill[person][p] == 0) notZero--;
         }
-        int lossNext = calcLoss(person);
+        double lossNext = calcLoss(person);
         if(lossNext < loss){
             changed = true;
             loss = lossNext;
@@ -282,6 +254,11 @@ void estimateSkill(const int person, Timer &time){
     }
 }
 
+int next_combination(int sub) {
+    int x = sub & -sub, y = sub + x;
+    return (((sub & ~y) / x) >> 1) | y;
+}
+
 void assignTask(){
 
     vector<int> ans;
@@ -306,6 +283,7 @@ void assignTask(){
         }
         else break;
     }
+    
     while(pq.size()) {
         auto [we, task] = pq.top(); pq.pop();
         remainWorker--;
@@ -413,7 +391,7 @@ signed main(){
         }
     }
     chmax(randMa, 30);
-    randMa /= 2;
+    // randMa /= 2;
     for(int i=0;i<R;i++){
         int a,b;
         cin>>a>>b;
