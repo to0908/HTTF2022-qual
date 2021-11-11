@@ -28,95 +28,6 @@ unsigned int randint() {
     tx = ty; ty = tz; tz = tw;
     return ( tw=(tw^(tw>>19))^(tt^(tt>>8)) );
 }
-template< typename T > struct MedianManager {
-    T median;
-    int n;
-    multiset<T> r;
-    multiset<T, greater<T>> l;
-
-    MedianManager(){
-        median = 0;
-        n = 0;
-    }
-
-    T get(){
-        // 偶数の時は小さい方を返す
-        return median;
-    }
-
-    T rsize(){ return r.size(); }
-    T lsize() { return l.size(); }
-
-    T insert(T x){
-        n++;
-        if(n == 1) {
-            median = x;
-            return median;
-        }
-        if(median < x) {
-            r.insert(x);
-            if(n % 2) {
-                l.insert(median);
-                rpop();
-            }
-        }
-        else{
-            l.insert(x);
-            if(n % 2 == 0) {
-                r.insert(median);
-                lpop();
-            }
-        }
-        return median;
-    }
-
-    T erase(T x){
-        assert(n > 0);
-        n--;
-        if(n == 0) {
-            median = 0;
-            return 0;
-        }
-        if(x == median) {
-            if(n % 2) {
-                rpop();
-            }
-            else {
-                lpop();
-            }
-        }
-        else if(x < median) {
-            auto itr = l.find(x);
-            assert(itr != l.end());
-            l.erase(itr);
-            if(n % 2) {
-                l.insert(median);
-                rpop();
-            }
-        }
-        else if(x > median) {
-            auto itr = r.find(x);
-            assert(itr != r.end());
-            r.erase(itr);
-            if(n % 2 == 0) {
-                r.insert(median);
-                lpop();
-            }
-        }
-        return median;
-    }
-
-private:
-    void rpop() {
-        median = *r.begin();
-        r.erase(r.begin());
-    }
-    void lpop() {
-        median = *l.begin();
-        l.erase(l.begin());
-    }
-};
-
 
 const int N = 1000, M = 20;
 int K, R, Kdiv2, randMa;
@@ -137,7 +48,6 @@ int remainWorker = M;
 vector<vector<int>> minimumSkill(M);
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<double> WorkerNorm(M);
-MedianManager<double> WorkerNormMedian;
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
@@ -157,23 +67,17 @@ double calcLoss(int person){
         double est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
-    // Ridge
-    // for(int i=0;i<K;i++){
-    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size() * 0.5;
-    // }
     return loss;
 }
 
-double calcL2norm(vector<double> &v, bool isSqrt=true){
+double calcL1norm(vector<double> &v){
     double sum = 0;
-    for(auto i:v) sum += i * i;
-    if(isSqrt) sum = sqrt(sum);
+    for(auto i:v) sum += i;
     return sum;
 }
-int calcL2norm(vector<int> &v, bool isSqrt=true){
+int calcL1norm(vector<int> &v){
     double sum = 0;
-    for(auto i:v) sum += i * i;
-    if(isSqrt) sum = sqrt(sum);
+    for(auto i:v) sum += i;
     return sum;
 }
 
@@ -245,10 +149,8 @@ void estimateSkill(const int person, Timer &time){
     
     int norm = WorkerNorm[person];
     if(changed) {
-        WorkerNormMedian.erase(norm);
         skill[person] = bestSkill;
-        norm = calcL2norm(skill[person], false);
-        WorkerNormMedian.insert(norm);
+        norm = calcL1norm(skill[person]);
         WorkerNorm[person] = norm;
         cout << "#s " << person + 1 << " " << skill[person] << endl;
     }
@@ -274,7 +176,7 @@ void assignTask(){
     priority_queue<array<int,2>> pq;
     while(workerCount--) {
         if(!taskQue.empty()){
-            auto [idx, task] = taskQue.top(); taskQue.pop();
+            auto [we, task] = taskQue.top(); taskQue.pop();
             pq.push({taskWeight[task][1] ,task});
         }
         else if(!freeTaskQue.empty()){
@@ -283,7 +185,7 @@ void assignTask(){
         }
         else break;
     }
-    
+
     while(pq.size()) {
         auto [we, task] = pq.top(); pq.pop();
         remainWorker--;
@@ -300,6 +202,7 @@ void assignTask(){
     cout << ans << endl;
 }
 
+const int base = 1000000;
 bool dayEnd(Timer &time){
     int n; cin>>n;
     if(n == -1) return true;
@@ -314,7 +217,7 @@ bool dayEnd(Timer &time){
                 notReleased--;
                 if(v[x].size() == 0) freeTaskQue.push({taskWeight[x][1], x});
                 else{
-                    taskQue.push({taskWeight[x][0], x});
+                    taskQue.push({taskWeight[x][0] * base + taskWeight[x][1], x});
                 }
             }
         }
@@ -342,34 +245,31 @@ void init(){
             sum += skill[i][j] * skill[i][j];
         }
         WorkerNorm[i] = sum;
-        WorkerNormMedian.insert(sum);
     }
     int cnt[N]={};
-    queue<int> q;
+    queue<array<int,2>> q;
     for(int i=0;i<N;i++){
         cnt[i] = v[i].size();
         rCnt[i] = rev[i].size();
-        taskWeight[i][1] = calcL2norm(d[i], false);
+        taskWeight[i][1] = calcL1norm(d[i]);
         if(v[i].size() == 0) {
-            q.push(i);
+            q.push({0, i});
             taskWeight[i][0] = -1;
             if(rCnt[i] == 0) freeTaskQue.push({taskWeight[i][1], i});
             continue;
         }
     }
-    int now = 0;
     while(q.size()){
-        int p = q.front();
+        auto [dep,p] = q.front();
         q.pop();
         if(v[p].size() != 0) {
-            taskWeight[p][0] = now;
-            if(rev[p].size() == 0) taskQue.push({now, p});
-            now++;
+            taskWeight[p][0] = dep;
+            if(rev[p].size() == 0) taskQue.push({dep * base + taskWeight[p][1], p});
         }
         for(auto i:rev[p]) {
             cnt[i]--;
             if(cnt[i] == 0){
-                q.push(i);
+                q.push({dep+1, i});
             }
         }
     }
