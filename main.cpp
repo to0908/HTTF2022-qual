@@ -232,7 +232,7 @@ void estimateSkill(const int person, Timer &time){
             if(loss == 0) break;
             continue;
         }
-        else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
+        else if(yakiR * (3000 - time.elapsed()) > 3000*(randint()%yakiR)){
             // force Next
             continue;
         }
