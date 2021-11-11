@@ -49,7 +49,6 @@ vector<vector<int>> minimumSkill(M);
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<double> WorkerNorm(M);
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
-int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
 
 
@@ -268,7 +267,7 @@ void solve(Timer &time){
     }
 }
 
-void init(){
+void initSkill(){
     // skillの初期化
     for(int i=0;i<M;i++){
         skill[i].resize(K);
@@ -280,6 +279,9 @@ void init(){
         }
         WorkerNorm[i] = sum;
     }
+}
+
+void initTask(){
     int cnt[N]={};
     queue<array<int,2>> q;
     for(int i=0;i<N;i++){
@@ -288,16 +290,15 @@ void init(){
         taskWeight[i][1] = calcL1norm(d[i]);
         if(v[i].size() == 0) {
             q.push({0, i});
-            taskWeight[i][0] = -1;
             if(rCnt[i] == 0) freeTaskQue.push({taskWeight[i][1], i});
             continue;
         }
     }
     while(q.size()){
-        auto [dep,p] = q.front();
+        auto [dep, p] = q.front();
         q.pop();
+        taskWeight[p][0] = dep;
         if(v[p].size() != 0) {
-            taskWeight[p][0] = dep;
             if(rev[p].size() == 0) taskQue.push({dep * base + taskWeight[p][1], p});
         }
         for(auto i:rev[p]) {
@@ -333,7 +334,8 @@ signed main(){
         v[a].emplace_back(b);
         rev[b].emplace_back(a);
     }
-    init();
+    initSkill();
+    initTask();
     solve(time);
 
     cerr << "[time] " << time.elapsed() << " ms"<< endl;
