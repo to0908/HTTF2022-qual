@@ -186,10 +186,8 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    if(past == 1) {
-        for(int i=0;i<K;i++){
-            chmax(minimumSkill[person][i], d[working[person][0]][i]);
-        }
+    for(int i=0;i<K;i++){
+        chmax(minimumSkill[person][i], d[working[person][0]][i] - (past - 1));
     }
     if(gap == 0){
         int norm = WorkerNorm[person];
@@ -205,7 +203,6 @@ void estimateSkill(const int person, Timer &time){
             double gap = est - cost;
             if(gap < eps) continue;
             for(int i=0;i<K;i++){
-                // 88344
                 skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
                 chmax(skill[person][i], minimumSkill[person][i]);
             }
@@ -279,7 +276,11 @@ void assignTask(){
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
     };
-
+    // TODO: 労働者をどの仕事に割り当てるのが良いか、DP
+    // x人、x個の仕事があり、1人に1つ割り当てる。
+    // 仕事をするのにかかる日数の総和(最後に終わる仕事の日ではない)を最小化する
+    // xは少なくなりがちで、20とかになるのは少ないので、bitDPでできる？
+    // norm(skill) < midならパスしてでもnormの大きいタスクはやらない、みたいなのは必要？
     while(workerQue.size()){
         auto [norm, person] = workerQue.top();
         if(norm >= WorkerNormMedian.get()) {
