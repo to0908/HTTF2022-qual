@@ -173,18 +173,15 @@ void assignTask(){
     };
 
     int workerCount = remainWorker;
-    priority_queue<array<int,2>> pq;
     vector<int> tasks;
     int cnt = 0;
     while(workerCount--) {
         if(!taskQue.empty()){
             auto [we, task] = taskQue.top(); taskQue.pop();
-            // pq.push({taskWeight[task][1] ,task});
             tasks.emplace_back(task);
         }
         else if(!freeTaskQue.empty()){
             auto [we, task] = freeTaskQue.top(); freeTaskQue.pop();
-            // pq.push({we ,task});
             tasks.emplace_back(task);
         }
         else break;
@@ -235,18 +232,6 @@ void assignTask(){
         working[person] = {task, day, cost[person_i][task_i]};
         addAns(ans, sz, person, task);
     }
-    // while(pq.size()) {
-    //     auto [we, task] = pq.top(); pq.pop();
-    //     remainWorker--;
-    //     double mi = 1e9;
-    //     int idx = -1;
-    //     for(int i=0;i<M;i++){
-    //         if(working[i][0] != -1) continue;
-    //         if(chmin(mi, estimateDay(i, task))) idx = i;
-    //     }
-    //     working[idx] = {task, day, (int)mi};
-    //     addAns(ans, sz, idx, task);
-    // }
     cout << sz << " ";
     cout << ans << endl;
 }
