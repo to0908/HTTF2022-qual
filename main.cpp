@@ -32,7 +32,7 @@ unsigned int randint() {
 const int N = 1000, M = 20;
 int K, R, Kdiv2, randMa;
 vector<vector<int>> d(N);
-vector<vector<double>> skill(M); // 問題のd, s
+vector<vector<int>> skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
 const int INF = 1e9;
@@ -47,40 +47,34 @@ int notReleased = N; // まだ開始することができない残りの仕事�
 int remainWorker = M;
 vector<vector<int>> minimumSkill(M);
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
-vector<double> WorkerNorm(M);
+vector<int> WorkerNorm(M);
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 /////////////////////////////////////////////////////////
 
-
-double estimateDay(int person, int task){
-    double est = 0;
+int estimateDay(int person, int task){
+    int est = 0;
     for(int i=0;i<K;i++) {
-        est += max(0.0, d[task][i] - skill[person][i]);
+        est += max(0, d[task][i] - skill[person][i]);
     }
-    return max(1.0, est);
+    return max(1, est);
 }
-double calcLoss(int person){
-    double loss = 0;
+int calcLoss(int person){
+    int loss = 0;
     // Mean Square Error
     for(auto [task, past]: doneTask[person]){
-        double est = estimateDay(person, task);
+        int est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
     return loss;
 }
 
-double calcL1norm(vector<double> &v){
-    double sum = 0;
-    for(auto i:v) sum += i;
-    return sum;
-}
 int calcL1norm(vector<int> &v){
-    double sum = 0;
+    int sum = 0;
     for(auto i:v) sum += i;
     return sum;
 }
 
-const double eps = 0.5;
+const int eps = 0.5;
 void estimateSkill(const int person, Timer &time){
     remainWorker++;
     // TODO: ずれの方向から、焼きなましの方向を決める。
@@ -93,13 +87,13 @@ void estimateSkill(const int person, Timer &time){
         chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
     }
     working[person] = {-1, -1, -1};
-    if(gap <= 2) return;
+    if(gap == 0) return;
     bool changed = false;
     changed=1;
     for(int i=0;i<K;i++) skill[person][i] = minimumSkill[person][i];
 
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
-    double loss = calcLoss(person);
+    int loss = calcLoss(person);
     int notZero = 0;
     for(int i=0;i<K;i++){
         if(skill[person][i] != 0) {
@@ -107,7 +101,7 @@ void estimateSkill(const int person, Timer &time){
             break;
         }
     }
-    vector<double> bestSkill = skill[person];
+    vector<int> bestSkill = skill[person];
 
     const int yakiR = 1500;
     int iter=1000;
@@ -125,7 +119,7 @@ void estimateSkill(const int person, Timer &time){
             skill[person][p]--;
             if(skill[person][p] == 0) notZero--;
         }
-        double lossNext = calcLoss(person);
+        int lossNext = calcLoss(person);
         if(lossNext < loss){
             changed = true;
             loss = lossNext;
@@ -282,10 +276,8 @@ void initSkill(){
 }
 
 void initTask(){
-    int cnt[N]={};
     queue<array<int,2>> q;
     for(int i=0;i<N;i++){
-        cnt[i] = v[i].size();
         rCnt[i] = rev[i].size();
         taskWeight[i][1] = calcL1norm(d[i]);
         if(v[i].size() == 0) {
@@ -345,7 +337,7 @@ void initTask(){
         while(ma && pq.size()){
             auto [we, task, p] = pq.top(); pq.pop();
             ma--;
-            taskQue.push({1e9+7 + we, task});
+            taskQue.push({(int)1e9+7 + we, task});
         }
         while(pq.size()){
             auto [we, task, p] = pq.top(); pq.pop();
