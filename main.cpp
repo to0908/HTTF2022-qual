@@ -330,6 +330,7 @@ void initTask(){
         // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
     // 悪化、最初に軽いタスクで実力チェック
+    if(R < 2000)
     {
         priority_queue<array<int,3>,vector<array<int,3>>, greater<array<int,3>>> pq;
         while(taskQue.size()){
