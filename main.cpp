@@ -158,23 +158,17 @@ double calcLoss(int person){
         double est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
-    // Ridge
-    // for(int i=0;i<K;i++){
-    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size() * 0.5;
-    // }
     return loss;
 }
 
-double calcL2norm(vector<double> &v, bool isSqrt=true){
+double calcL1norm(vector<double> &v){
     double sum = 0;
-    for(auto i:v) sum += i * i;
-    if(isSqrt) sum = sqrt(sum);
+    for(auto i:v) sum += i;
     return sum;
 }
-int calcL2norm(vector<int> &v, bool isSqrt=true){
+int calcL1norm(vector<int> &v){
     double sum = 0;
-    for(auto i:v) sum += i * i;
-    if(isSqrt) sum = sqrt(sum);
+    for(auto i:v) sum += i;
     return sum;
 }
 
@@ -248,7 +242,7 @@ void estimateSkill(const int person, Timer &time){
     if(changed) {
         WorkerNormMedian.erase(norm);
         skill[person] = bestSkill;
-        norm = calcL2norm(skill[person], false);
+        norm = calcL1norm(skill[person]);
         WorkerNormMedian.insert(norm);
         WorkerNorm[person] = norm;
         cout << "#s " << person + 1 << " " << skill[person] << endl;
@@ -365,14 +359,16 @@ void init(){
         rCnt[i] = rev[i].size();
         cnt[i] = v[i].size();
         if(cnt[i] == 0) q.push(i);
-
+        taskWeight[i][1] = calcL1norm(d[i]);
+    }
+    for(int i=0;i<N;i++){
         // タスクの重み計算
         queue<int> q;
         bool used[N]={};
         q.push(i);
         while(q.size()){
             int p = q.front(); q.pop();
-            taskWeight[i][0]++;
+            taskWeight[i][0] += taskWeight[p][1];
             for(auto x:v[p]){
                 if(!used[x]){
                     used[x] = 1;
@@ -380,8 +376,7 @@ void init(){
                 }
             }
         }
-        taskWeight[i][0]--;
-        taskWeight[i][1] = calcL2norm(d[i]);
+        taskWeight[i][0] -= taskWeight[i][1];
         {
             taskWeight[i][0] *= R;
             taskWeight[i][1] *= (4000 - R);
