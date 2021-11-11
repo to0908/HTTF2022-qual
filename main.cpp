@@ -187,44 +187,34 @@ void estimateSkill(const int person, Timer &time){
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
     for(int i=0;i<K;i++){
-        chmax(minimumSkill[person][i], d[working[person][0]][i] - (past - 1));
+        chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
     }
     if(gap == 0){
         int norm = WorkerNorm[person];
         workerQue.push({norm, person});
         return;
     }
-    bool changed = false;
-    int hoge = 100;
-    while(hoge--){
-        changed = true;
-        for(auto [task, cost]:doneTask[person]){
-            double est = estimateDay(person, task);
-            double gap = est - cost;
-            if(gap < eps) continue;
-            for(int i=0;i<K;i++){
-                skill[person][i] += (d[task][i] - skill[person][i]) * gap / 100;
-                chmax(skill[person][i], minimumSkill[person][i]);
-            }
-        }
-    }
+    bool changed = true;
+
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
-    int loss = calcLoss(person);
+    double loss = calcLoss(person);
     int notZero = 0;
     for(int i=0;i<K;i++){
+        skill[person][i] = minimumSkill[person][i];
         if(skill[person][i] != 0) {
             notZero++;
             break;
         }
     }
-    const int yakiR = 1500;
+
     vector<double> bestSkill = skill[person];
+    const int yakiR = 1500;
     int iter=1000;
     while(iter--){
         int p = randint() % K;
         int inc = randint() % 2;
         bool dec = false;
-        if(notZero < Kdiv2 or inc==0) {
+        if(notZero < Kdiv2 or inc==0 or skill[person][p] == minimumSkill[person][p]) {
             if(skill[person][p] == 0) notZero++;
             skill[person][p]++;
         }
@@ -234,7 +224,7 @@ void estimateSkill(const int person, Timer &time){
             skill[person][p]--;
             if(skill[person][p] == 0) notZero--;
         }
-        int lossNext = calcLoss(person);
+        double lossNext = calcLoss(person);
         if(lossNext < loss){
             changed = true;
             loss = lossNext;
