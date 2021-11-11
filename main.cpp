@@ -35,7 +35,7 @@ vector<vector<int>> d(N);
 vector<vector<double>> skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
-
+const int INF = 1e9;
 ////////////// Task //////////
 priority_queue<array<int, 2>> taskQue; // {順番, task index}
 priority_queue<array<int, 2>> freeTaskQue; // 下のタスクがないもの {L2norm, task index}
@@ -166,7 +166,7 @@ void assignTask(){
     vector<int> ans;
     int sz = 0;
     auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
-        working[person] = {task, day, (int)estimateDay(person, task)};
+        // working[person] = {task, day, (int)estimateDay(person, task)};
         sz++;
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
@@ -174,30 +174,79 @@ void assignTask(){
 
     int workerCount = remainWorker;
     priority_queue<array<int,2>> pq;
+    vector<int> tasks;
+    int cnt = 0;
     while(workerCount--) {
         if(!taskQue.empty()){
             auto [we, task] = taskQue.top(); taskQue.pop();
-            pq.push({taskWeight[task][1] ,task});
+            // pq.push({taskWeight[task][1] ,task});
+            tasks.emplace_back(task);
         }
         else if(!freeTaskQue.empty()){
             auto [we, task] = freeTaskQue.top(); freeTaskQue.pop();
-            pq.push({we ,task});
+            // pq.push({we ,task});
+            tasks.emplace_back(task);
         }
         else break;
+        cnt++;
     }
-
-    while(pq.size()) {
-        auto [we, task] = pq.top(); pq.pop();
-        remainWorker--;
-        double mi = 1e9;
-        int idx = -1;
-        for(int i=0;i<M;i++){
-            if(working[i][0] != -1) continue;
-            if(chmin(mi, estimateDay(i, task))) idx = i;
+    if(cnt == 0) {
+        cout << 0 << endl;
+        return;
+    }
+    vector<int> worker;
+    vector<vector<int>> cost;
+    for(int i=0;i<M;i++) {
+        if(working[i][0] == -1) {
+            worker.emplace_back(i);
+            vector<int> t;
+            for(auto j:tasks){
+                t.emplace_back(estimateDay(i, j));
+            }
+            cost.emplace_back(t);
         }
-        working[idx] = {task, day, (int)mi};
-        addAns(ans, sz, idx, task);
     }
+    int m = worker.size();
+    vector<int> dp(1<<m, INF);
+    vector<array<int,3>> pos(1<<m, {-1,-1,-1});
+    dp[0] = 0;
+    int mi = INF, mibit = -1;
+    
+    for(int i=0; i<cnt; i++){
+        for(int bit=(1<<i)-1; bit < (1<<m); bit = next_combination(bit)){
+            for(int j=0; j<m; j++){
+                if(bit & (1<<j)) continue;
+                if(chmin(dp[bit | (1<<j)], dp[bit] + cost[j][i])){
+                    pos[bit | (1<<j)] = {bit, j, i};
+                }
+                if(i == cnt - 1 && chmin(mi, dp[bit | (1<<j)])){
+                    mibit = (bit | (1<<j));
+                }
+            }
+            if(bit == 0) break;
+        }
+    }
+    while(mibit != 0) {
+        remainWorker--;
+        auto [nb, person_i, task_i] = pos[mibit];
+        mibit = nb;
+        int person = worker[person_i];
+        int task = tasks[task_i];
+        working[person] = {task, day, cost[person_i][task_i]};
+        addAns(ans, sz, person, task);
+    }
+    // while(pq.size()) {
+    //     auto [we, task] = pq.top(); pq.pop();
+    //     remainWorker--;
+    //     double mi = 1e9;
+    //     int idx = -1;
+    //     for(int i=0;i<M;i++){
+    //         if(working[i][0] != -1) continue;
+    //         if(chmin(mi, estimateDay(i, task))) idx = i;
+    //     }
+    //     working[idx] = {task, day, (int)mi};
+    //     addAns(ans, sz, idx, task);
+    // }
     cout << sz << " ";
     cout << ans << endl;
 }
