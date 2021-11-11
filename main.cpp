@@ -134,19 +134,6 @@ vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx,
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
-// struct Worker{
-//     int task, startDay, estimateDay;
-//     vector<int> skill;
-//     int norm;
-//     // Worker(int k):skill(k){};
-//     Worker(vector<int> &s):skill(s){};
-//     void startWorking(int &t, int &est){
-//         task = t;
-//         startDay = day;
-//         estimateDay = est;
-//     }
-//     void changeSkill(){}
-// };
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<int> WorkerNorm(M);
@@ -169,10 +156,6 @@ int calcLoss(int person){
         int est = estimateDay(person, task);
         loss += (past - est) * (past - est);
     }
-    // Ridge
-    // for(int i=0;i<K;i++){
-    //     loss += skill[person][i] * skill[person][i] * (int)doneTask[person].size() * 0.5;
-    // }
     return loss;
 }
 
@@ -190,15 +173,10 @@ void estimateSkill(const int person, Timer &time){
     int past = day - working[person][1] + 1;
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
-    // int positiveGrad = 2 * ((past - working[person][2]) < 0);
     bool changed = false;
     if(gap > 15){
         changed = true;
         for(int i=0;i<K;i++) {
-            // 88400
-            // 88697.0
-            // 88611
-            // 88715.6
             double x = 0;
             for(auto dt:doneTask[person]) {
                 auto [tsk,da] = dt;
@@ -207,8 +185,6 @@ void estimateSkill(const int person, Timer &time){
             x = (x + (int)doneTask.size() - 1) / (int)doneTask.size();
             skill[person][i] = int(x);
             chmax(skill[person][i], 1);
-            // skill[person][i] = randint() % randMa - 2 * (positiveGrad == 0);
-            // chmax(skill[person][i], 1);
         }
     }
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
