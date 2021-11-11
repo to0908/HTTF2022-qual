@@ -235,7 +235,7 @@ void assignTask(){
     cout << ans << endl;
 }
 
-const int base = 1000000;
+
 bool dayEnd(Timer &time){
     int n; cin>>n;
     if(n == -1) return true;
@@ -250,7 +250,7 @@ bool dayEnd(Timer &time){
                 notReleased--;
                 if(v[x].size() == 0) freeTaskQue.push({taskWeight[x][1], x});
                 else{
-                    taskQue.push({taskWeight[x][0] * base + taskWeight[x][1], x});
+                    taskQue.push({taskWeight[x][0] + taskWeight[x][1], x});
                 }
             }
         }
@@ -294,19 +294,40 @@ void initTask(){
             continue;
         }
     }
-    while(q.size()){
-        auto [dep, p] = q.front();
-        q.pop();
-        taskWeight[p][0] = dep;
-        if(v[p].size() != 0) {
-            if(rev[p].size() == 0) taskQue.push({dep * base + taskWeight[p][1], p});
-        }
-        for(auto i:rev[p]) {
-            cnt[i]--;
-            if(cnt[i] == 0){
-                q.push({dep+1, i});
+    // while(q.size()){
+    //     auto [dep, p] = q.front();
+    //     q.pop();
+    //     taskWeight[p][0] = dep;
+    //     if(v[p].size() != 0) {
+    //         if(rev[p].size() == 0) taskQue.push({dep * base + taskWeight[p][1], p});
+    //     }
+    //     for(auto i:rev[p]) {
+    //         cnt[i]--;
+    //         if(cnt[i] == 0){
+    //             q.push({dep+1, i});
+    //         }
+    //     }
+    // }
+    for(int i=0;i<N;i++){
+        // タスクの重み計算
+        queue<int> q;
+        bool used[N]={};
+        q.push(i);
+        while(q.size()){
+            int p = q.front(); q.pop();
+            taskWeight[i][0] += taskWeight[p][1];
+            for(auto x:v[p]){
+                if(!used[x]){
+                    used[x] = 1;
+                    q.push(x);
+                }
             }
         }
+        taskWeight[i][0] -= taskWeight[i][1];
+        if(rev[i].size() == 0 && v[i].size()) {
+            taskQue.push({taskWeight[i][0] + taskWeight[i][1], i});
+        }
+        // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
 }
 
