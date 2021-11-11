@@ -329,6 +329,29 @@ void initTask(){
         }
         // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
+    // 悪化、最初に軽いタスクで実力チェック
+    {
+        priority_queue<array<int,3>,vector<array<int,3>>, greater<array<int,3>>> pq;
+        while(taskQue.size()){
+            auto [we, task] = taskQue.top(); taskQue.pop();
+            pq.push({we, task, 0});
+        }
+        while(freeTaskQue.size()) {
+            auto [we, task] = freeTaskQue.top(); freeTaskQue.pop();
+            pq.push({we, task, 1});
+        }
+        int ma = 40;
+        while(ma && pq.size()){
+            auto [we, task, p] = pq.top(); pq.pop();
+            ma--;
+            taskQue.push({1e9+7 + we, task});
+        }
+        while(pq.size()){
+            auto [we, task, p] = pq.top(); pq.pop();
+            if(p == 0) taskQue.push({we, task});
+            else freeTaskQue.push({we, task});
+        }
+    }
 }
 
 signed main(){
