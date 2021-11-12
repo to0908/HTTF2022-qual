@@ -166,8 +166,13 @@ int calcL1norm(vector<int> &v){
     return sum;
 }
 
+int next_combination(int sub) {
+    int x = sub & -sub, y = sub + x;
+    return (((sub & ~y) / x) >> 1) | y;
+}
+
 void estimateSkill(const int person, Timer &time){
-    // TODO: ずれの方向から、焼きなましの方向を決める。
+    remainWorker++;
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
@@ -253,38 +258,42 @@ void estimateSkill(const int person, Timer &time){
     workerQue.push({norm, person});
 }
 
+const int INF = 1e9 + 7;
 void assignTask(){
 
     vector<int> ans;
     int sz = 0;
     auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
-        working[person] = {task, day, estimateDay(person, task)};
         sz++;
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
     };
 
+    priority_queue<array<int,2>> pq;
+    vector<int> tasks;
+    int cnt = 0;
+    vector<int> worker;
     while(workerQue.size()){
         auto [norm, person] = workerQue.top();
         if(norm >= WorkerNormMedian.get()) {
             if(!taskQue[LARGE].empty()) {
                 auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else if(!taskQue[SMALL].empty()){
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else if(!freeTaskQue.empty()){
                 auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else break;
         }
         else{
             if(!taskQue[SMALL].empty()) {
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else if(!taskQue[LARGE].empty() && notReleased > 20) {
                 if(R > 2000 && day > 100) {
@@ -292,15 +301,68 @@ void assignTask(){
                     if(t == 0) break;
                 }
                 auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else if(!freeTaskQue.empty()){
                 auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
+                tasks.push_back(task);
             }
             else break;
         }
+        worker.push_back(person);
         workerQue.pop();
+        cnt++;
+    }
+    if(cnt == 0) {
+        cout << 0 << endl;
+        return;
+    }
+    while(workerQue.size()){
+        auto [norm, person] = workerQue.top();
+        workerQue.pop();
+        worker.push_back(person);
+    }
+    vector<vector<int>> cost;
+    for(auto person:worker) {
+        assert(working[person][0] == -1);
+        vector<int> t;
+        for(auto j:tasks){
+            t.emplace_back(estimateDay(person, j));
+        }
+        cost.emplace_back(t);
+    }
+    int m = worker.size();
+    vector<int> dp(1<<m, INF);
+    vector<array<int,3>> pos(1<<m, {-1,-1,-1});
+    dp[0] = 0;
+    int mi = INF, mibit = -1;
+    
+    for(int i=0; i<cnt; i++){
+        for(int bit=(1<<i)-1; bit < (1<<m); bit = next_combination(bit)){
+            for(int j=0; j<m; j++){
+                if(bit & (1<<j)) continue;
+                if(chmin(dp[bit | (1<<j)], dp[bit] + cost[j][i])){
+                    pos[bit | (1<<j)] = {bit, j, i};
+                }
+                if(i == cnt - 1 && chmin(mi, dp[bit | (1<<j)])){
+                    mibit = (bit | (1<<j));
+                }
+            }
+            if(bit == 0) break;
+        }
+    }
+    while(mibit != 0) {
+        auto [nb, person_i, task_i] = pos[mibit];
+        mibit = nb;
+        int person = worker[person_i];
+        int task = tasks[task_i];
+        working[person] = {task, day, cost[person_i][task_i]};
+        addAns(ans, sz, person, task);
+    }
+    for(auto p:worker){
+        if(working[p][0] == -1) {
+            workerQue.push({WorkerNorm[p], p});
+        }
     }
     cout << sz << " ";
     cout << ans << endl;
