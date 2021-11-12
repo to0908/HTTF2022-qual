@@ -35,20 +35,22 @@ struct NN {
         // cout << "#sig_s: " << sig_s << endl;
         // cout << "#s " << s << endl; 
         // cout << "#skill " << id << " " << skill << endl; 
-        cout << "#s " << id << " " << skill << endl; 
+        cout << "#s " << id + 1 << " " << skill << endl; 
     }
-
+    // NN();
     NN(){}
     NN(int k){
         K = k;
         d = -10;
         sig_d = sigmoid(d);
         grad_d = 0;
-        S = vector<double>(k, 0);
-        s = vector<double>(k, -1);
-        sig_s = vector<double>(k, 0);
-        grad_s = vector<double>(k, 0);
-        skill = vector<int> (k, 1);
+        for(int i=0;i<K;i++) {
+            S.push_back(0);
+            s.push_back(-1);
+            sig_s.push_back(0);
+            grad_s.push_back(0);
+            skill.push_back(1);
+        }
         update_Ss();
         D = compute_D();
         Q = compute_Q();
@@ -92,11 +94,6 @@ struct NN {
 
     void train(vector<vector<int>> &X, vector<int> &y, double lr=1){
         clear_grad();
-        // sig_d = sigmoid(d);
-        // D = compute_D();
-        // update_Ss();
-        // Q = compute_Q();
-        // update_skill();
 
         int n = X.size();
         assert(n != 0);
@@ -116,7 +113,6 @@ struct NN {
         d -= grad_d * mul;
         for(int i=0;i<K;i++) s[i] -= grad_s[i] * mul;
 
-        // update_skill();
         sig_d = sigmoid(d);
         D = compute_D();
         update_Ss();
@@ -124,7 +120,6 @@ struct NN {
         update_skill();
     }
 
-private:
     int K;
     vector<int> skill;
 
@@ -167,7 +162,6 @@ int notReleased = N; // まだ開始することができない残りの仕事�
 vector<NN> Nets(M);
 void setNeuralNet() {
     for(int i=0;i<M;i++) Nets[i] = NN(K);
-    Nets[7].print_skill(8);
 }
 int remainWorker = M;
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
@@ -178,15 +172,6 @@ vector<vector<vector<int>>> doneTaskSkill(M); // d
 
 double estimateDay(int person, int task){
     return Nets[person].predict(d[task]);
-}
-int calcLoss(int person){
-    int loss = 0;
-    // Mean Square Error
-    for(auto [task, past]: doneTask[person]){
-        int est = estimateDay(person, task);
-        loss += (past - est) * (past - est);
-    }
-    return loss;
 }
 double calcL1norm(vector<double> &v){
     int sum = 0;
@@ -201,7 +186,7 @@ int calcL1norm(vector<int> &v){
 
 bool debug = false;
 int epoch = 2;
-int batch = 20;
+int batch = 25;
 void estimateSkill(const int person, Timer &time){
     remainWorker++;
     // 今のday, working[person]の情報から更新
@@ -209,7 +194,7 @@ void estimateSkill(const int person, Timer &time){
     int task = working[person][0];
     int estpast = working[person][2];
     if(debug) cerr << "true/est/dif: " << past << " " << estpast << " " << past - estpast << (abs(past - estpast) <= 5 ? " ------ok------":"") << endl;
-    for(int r=-3;r<=3;r++){
+    for(int r=-2;r<=2;r++){
         if(past + r <= 0) continue;
         doneTaskDay[person].push_back(past + r);
         doneTaskSkill[person].push_back(d[task]);
@@ -221,12 +206,14 @@ void estimateSkill(const int person, Timer &time){
         vector<int> trainY;
         while((int)trainX.size() < batch){
             int x = randint() % (int)doneTaskDay[person].size();
-            trainX.emplace_back(doneTaskSkill[person][x]);
-            trainY.emplace_back(doneTaskDay[person][x]);
+            // cerr << "A" << endl;
+            trainX.push_back(doneTaskSkill[person][x]);
+            // cerr << "B" << endl;
+            trainY.push_back(doneTaskDay[person][x]);
         }
         Nets[person].train(trainX, trainY);
     }
-    Nets[person].print_skill(person + 1);
+    Nets[person].print_skill(person);
     if(debug) cerr << "est - past: " << Nets[person].predict(doneTaskSkill[person].back()) - past << endl;
 }
 
@@ -241,8 +228,8 @@ void assignTask(){
     int sz = 0;
     auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
         sz++;
-        ans.emplace_back(person+1);
-        ans.emplace_back(task+1);
+        ans.push_back(person+1);
+        ans.push_back(task+1);
     };
 
     int workerCount = remainWorker;
@@ -251,16 +238,16 @@ void assignTask(){
     while(workerCount--) {
         if(!taskQue.empty()){
             auto [we, task] = taskQue.top(); taskQue.pop();
-            tasks.emplace_back(task);
+            tasks.push_back(task);
             remainNonFreeTaskCount--;
         }
         else if(!freeTaskQue[LARGE].empty()) {
             auto [we, task] = freeTaskQue[LARGE].top(); freeTaskQue[LARGE].pop();
-            tasks.emplace_back(task);
+            tasks.push_back(task);
         }
         else if(!freeTaskQue[SMALL].empty()){
             auto [we, task] = freeTaskQue[SMALL].top(); freeTaskQue[SMALL].pop();
-            tasks.emplace_back(task);
+            tasks.push_back(task);
         }
         else break;
         cnt++;
@@ -273,12 +260,12 @@ void assignTask(){
     vector<vector<int>> cost;
     for(int i=0;i<M;i++) {
         if(working[i][0] == -1) {
-            worker.emplace_back(i);
+            worker.push_back(i);
             vector<int> t;
             for(auto j:tasks){
-                t.emplace_back(estimateDay(i, j));
+                t.push_back(estimateDay(i, j));
             }
-            cost.emplace_back(t);
+            cost.push_back(t);
         }
     }
     int m = worker.size();
@@ -313,7 +300,6 @@ void assignTask(){
     cout << sz << " ";
     cout << ans << endl;
 }
-
 
 
 bool dayEnd(Timer &time){
@@ -453,8 +439,8 @@ signed main(){
         int a,b;
         cin>>a>>b;
         a--,b--;
-        v[a].emplace_back(b);
-        rev[b].emplace_back(a);
+        v[a].push_back(b);
+        rev[b].push_back(a);
     }
     initTask();
     setNeuralNet();

@@ -8,9 +8,9 @@ mkdir scores
 mkdir out
 
 st=0
-en=1
+en=20
 procs=0
-slep=6
+slep=8
 
 calc() {
   ~/.cargo/bin/cargo run --release --bin tester ./a.out < in/$1.txt > out/$1.txt 2> scores/$1.txt
