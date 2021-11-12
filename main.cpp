@@ -171,9 +171,13 @@ void estimateSkill(const int person, Timer &time){
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
-    doneTask[person].push_back({working[person][0], past});
+    // doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
     bool changed = false;
+    for(int r=-1;r<=1;r++){
+        if(past + r <= 0) continue;
+        doneTask[person].push_back({working[person][0], past + r});
+    }
     if(gap > 15){
         changed = true;
         for(int i=0;i<K;i++) {
