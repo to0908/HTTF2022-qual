@@ -178,8 +178,13 @@ void estimateSkill(const int person, Timer &time){
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
+    int task = working[person][0];
     doneTask[person].push_back({working[person][0], past});
     int gap = abs(past - working[person][2]);
+    // for(int r=-2;r<=2;r++){
+    //     if(past + r <= 0) continue;
+    //     doneTask[person].push_back({working[person][0], past + r});
+    // }
     for(int i=0;i<K;i++){
         chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
     }
