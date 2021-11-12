@@ -28,99 +28,108 @@ unsigned int randint() {
     tx = ty; ty = tz; tz = tw;
     return ( tw=(tw^(tw>>19))^(tt^(tt>>8)) );
 }
-template< typename T > struct MedianManager {
-    T median;
-    int n;
-    multiset<T> r;
-    multiset<T, greater<T>> l;
 
-    MedianManager(){
-        median = 0;
-        n = 0;
+struct NN {
+    void print_skill(){ cout << "#s " << skill << endl; }
+
+    NN(){}
+    NN(int k){
+        K = k;
+        d = 0;
+        sig_d = 0;
+        grad_d = 0;
+        S = vector<double>(k, 0);
+        s = vector<double>(k, 0);
+        grad_s = vector<double>(k, 0);
+        sig_s = vector<double>(k, 0);
+        skill = vector<int> (k, 1);
+        update_Ss();
+        D = compute_D();
+        Q = compute_Q();
+        update_skill();
+    }
+    void clear_grad(){
+        for(int i=0;i<K;i++) grad_s[i] = 0;
+        grad_d = 0;
+    }
+    double compute_D(){
+        return 20 + 40 * sigmoid(d);
+    }
+    double compute_Q(){
+        double ret = 0;
+        for(int i=0;i<K;i++) ret += S[i] * S[i];
+        return D / sqrt(ret);
     }
 
-    T get(){
-        // 偶数の時は小さい方を返す
-        return median;
+    void update_Ss(){
+        for(int i=0;i<K;i++){
+            sig_s[i] = sigmoid(s[i]);
+            S[i] = sig_s[i] * 4.0;
+        }
+    }
+    void update_skill(){
+        for(int i=0;i<K;i++) skill[i] = round(Q * s[i]);
+    }
+    int predict(vector<int> &v){
+        assert((int)v.size() == K);
+        int ret = 0;
+        for(int i=0;i<K;i++) ret += max(0, v[i] - skill[i]);
+        return max(1, ret);
     }
 
-    T rsize(){ return r.size(); }
-    T lsize() { return l.size(); }
+    void train(vector<vector<int>> &X, vector<int> &y, double lr=12){
+        clear_grad();
+        sig_d = sigmoid(d);
+        D = compute_D();
+        update_Ss();
+        Q = compute_Q();
+        update_skill();
 
-    T insert(T x){
-        n++;
-        if(n == 1) {
-            median = x;
-            return median;
-        }
-        if(median < x) {
-            r.insert(x);
-            if(n % 2) {
-                l.insert(median);
-                rpop();
+        int n = X.size();
+        for(int i=0;i<n;i++){
+            double der_E = predict(X[i]) - y[i];
+            for(int j=0;j<K;j++){
+                // double der_Q = S[i];
+                double der_D = der_E * Q / D;
+                double der_d = der_D * 40 * inv_sig(sig_d);
+                double der_S = der_E * - S[i] * Q / D * Q / D* Q;
+                double der_s = der_S * inv_sig(sig_s[i]) * 4.0;
+                grad_d += der_d;
+                grad_s[i] += der_s;
             }
         }
-        else{
-            l.insert(x);
-            if(n % 2 == 0) {
-                r.insert(median);
-                lpop();
-            }
-        }
-        return median;
-    }
-
-    T erase(T x){
-        assert(n > 0);
-        n--;
-        if(n == 0) {
-            median = 0;
-            return 0;
-        }
-        if(x == median) {
-            if(n % 2) {
-                rpop();
-            }
-            else {
-                lpop();
-            }
-        }
-        else if(x < median) {
-            auto itr = l.find(x);
-            assert(itr != l.end());
-            l.erase(itr);
-            if(n % 2) {
-                l.insert(median);
-                rpop();
-            }
-        }
-        else if(x > median) {
-            auto itr = r.find(x);
-            assert(itr != r.end());
-            r.erase(itr);
-            if(n % 2 == 0) {
-                r.insert(median);
-                lpop();
-            }
-        }
-        return median;
+        double mul = lr / (double)X.size();
+        d -= grad_d * mul;
+        for(int i=0;i<K;i++) s[i] -= grad_s[i] * mul;
     }
 
 private:
-    void rpop() {
-        median = *r.begin();
-        r.erase(r.begin());
+    int K;
+    vector<int> skill;
+
+    double D, Q;
+    vector<double> S;
+
+    double sig_d;
+    vector<double> sig_s;
+
+    double d;
+    vector<double> s;
+
+    double grad_d;
+    vector<double> grad_s;
+
+    static double sigmoid(double x){
+        return 1.0 / (1.0 + exp(-x));
     }
-    void lpop() {
-        median = *l.begin();
-        l.erase(l.begin());
+    static double inv_sig(double sig_v){
+        return sig_v * (1 - sig_v);
     }
 };
 
 const int N = 1000, M = 20;
 int K, R, Kdiv2, randMa;
 vector<vector<int>> d(N);
-vector<vector<int>> skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
 const int INF = 1e9;
@@ -134,20 +143,20 @@ vector<array<int,2>> taskWeight(N); // タスクの重み, {順番, L2norm}
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
 ///////////// Worker /////////
+vector<NN> Nets(M);
+void setNeuralNet() {
+    for(int i=0;i<M;i++) Nets[i] = NN(K);
+    cerr << "OK" << endl;
+}
 int remainWorker = M;
-MedianManager<int> median;
-vector<vector<int>> minimumSkill(M);
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
-vector<int> WorkerNorm(M);
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
+vector<vector<int>> doneTaskDay(M); // かかった日数
+vector<vector<vector<int>>> doneTaskSkill(M); // d
 /////////////////////////////////////////////////////////
 
-int estimateDay(int person, int task){
-    int est = 0;
-    for(int i=0;i<K;i++) {
-        est += max(0, d[task][i] - skill[person][i]);
-    }
-    return max(1, est);
+double estimateDay(int person, int task){
+    return Nets[person].predict(d[task]);
 }
 int calcLoss(int person){
     int loss = 0;
@@ -158,7 +167,11 @@ int calcLoss(int person){
     }
     return loss;
 }
-
+double calcL1norm(vector<double> &v){
+    int sum = 0;
+    for(auto i:v) sum += i;
+    return sum;
+}
 int calcL1norm(vector<int> &v){
     int sum = 0;
     for(auto i:v) sum += i;
@@ -166,80 +179,33 @@ int calcL1norm(vector<int> &v){
 }
 
 const int eps = 0.5;
+bool debug = true;
+int epoch = 2;
+int batch = 8;
 void estimateSkill(const int person, Timer &time){
     remainWorker++;
     // TODO: ずれの方向から、焼きなましの方向を決める。
 
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
-    doneTask[person].push_back({working[person][0], past});
-    int gap = abs(past - working[person][2]);
-    for(int i=0;i<K;i++){
-        chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
+    int task = working[person][0];
+    int estpast = working[person][2];
+    if(debug) cerr << "true/est/dif: " << past << " " << estpast << " " << past - estpast << (abs(past - estpast) <= 5 ? " ------ok------":"") << endl;
+    // doneTask[person].push_back({task, past});
+    doneTaskDay[person].push_back(past);
+    doneTaskSkill[person].push_back(d[task]);
+    if(past - estpast == 0) return;
+    for(int epo=0;epo<epoch;epo++){
+        vector<vector<int>> trainX;
+        vector<int> trainY;
+        while((int)trainX.size() < batch){
+            int x = randint() % (int)doneTaskDay[person].size();
+            trainX.emplace_back(doneTaskSkill[person][x]);
+            trainY.emplace_back(doneTaskDay[person][x]);
+        }
+        Nets[person].train(trainX, trainY);
     }
-    working[person] = {-1, -1, -1};
-    if(gap == 0) return;
-    bool changed = false;
-    changed=1;
-    for(int i=0;i<K;i++) skill[person][i] = minimumSkill[person][i];
-
-    // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
-    int loss = calcLoss(person);
-    int notZero = 0;
-    for(int i=0;i<K;i++){
-        if(skill[person][i] != 0) {
-            notZero++;
-            break;
-        }
-    }
-    vector<int> bestSkill = skill[person];
-
-    const int yakiR = 1500;
-    int iter=1000;
-    while(iter--){
-        int p = randint() % K;
-        int inc = randint() % 2;
-        bool dec = false;
-        if(notZero < Kdiv2 or inc==0 or skill[person][p] == minimumSkill[person][p]) {
-            if(skill[person][p] == 0) notZero++;
-            skill[person][p]++;
-        }
-        else{
-            dec = 1;
-            while(skill[person][p] == 0) p = randint() % K;
-            skill[person][p]--;
-            if(skill[person][p] == 0) notZero--;
-        }
-        int lossNext = calcLoss(person);
-        if(lossNext < loss){
-            changed = true;
-            loss = lossNext;
-            bestSkill = skill[person];
-            if(loss == 0) break;
-            continue;
-        }
-        else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
-            // force Next
-            continue;
-        }
-        else {
-            if(dec) skill[person][p]++;
-            else skill[person][p]--;
-        }
-    }
-    for(int i=0;i<K;i++) {
-        chmax(bestSkill[i], minimumSkill[person][i]);
-    }
-    
-    int norm = WorkerNorm[person];
-    if(changed) {
-        median.erase(WorkerNorm[person]);
-        skill[person] = bestSkill;
-        norm = calcL1norm(skill[person]);
-        WorkerNorm[person] = norm;
-        median.insert(WorkerNorm[person]);
-        // cout << "#s " << person + 1 << " " << skill[person] << endl;
-    }
+    if(debug) cerr << "est - past: " << Nets[person].predict(doneTaskSkill[person].back()) - past << endl;
 }
 
 int next_combination(int sub) {
@@ -266,12 +232,12 @@ void assignTask(){
             tasks.emplace_back(task);
             remainNonFreeTaskCount--;
         }
-        else if(!freeTaskQue[SMALL].empty()){
-            auto [we, task] = freeTaskQue[SMALL].top(); freeTaskQue[SMALL].pop();
-            tasks.emplace_back(task);
-        }
         else if(!freeTaskQue[LARGE].empty()) {
             auto [we, task] = freeTaskQue[LARGE].top(); freeTaskQue[LARGE].pop();
+            tasks.emplace_back(task);
+        }
+        else if(!freeTaskQue[SMALL].empty()){
+            auto [we, task] = freeTaskQue[SMALL].top(); freeTaskQue[SMALL].pop();
             tasks.emplace_back(task);
         }
         else break;
@@ -327,111 +293,6 @@ void assignTask(){
 }
 
 
-void assignTask2(){
-
-    vector<int> ans;
-    int sz = 0;
-    auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
-        sz++;
-        ans.emplace_back(person+1);
-        ans.emplace_back(task+1);
-    };
-
-    vector<int> tasks;
-    int cnt = 0;
-    int LaMid = 0, SmMid = 0;
-    for(int i=0;i<M;i++) {
-        if(working[i][0] == -1) {
-            if(WorkerNorm[i] < median.get()) SmMid++;
-            else LaMid++;
-        }
-    }
-    while(LaMid){
-        if(!freeTaskQue[LARGE].empty()) {
-            auto [we, task] = freeTaskQue[LARGE].top(); freeTaskQue[LARGE].pop();
-            tasks.emplace_back(task);
-        }
-        else break;
-        LaMid--;
-        cnt++;
-    }
-    while(SmMid){
-        if(!freeTaskQue[SMALL].empty()){
-            auto [we, task] = freeTaskQue[SMALL].top(); freeTaskQue[SMALL].pop();
-            tasks.emplace_back(task);
-        }
-        else break;
-        SmMid--;
-        cnt++;
-    }
-    int rem = LaMid + SmMid;
-    while(rem--) {
-        if(!freeTaskQue[LARGE].empty()) {
-            auto [we, task] = freeTaskQue[LARGE].top(); freeTaskQue[LARGE].pop();
-            tasks.emplace_back(task);
-        }
-        else if(!freeTaskQue[SMALL].empty()){
-            auto [we, task] = freeTaskQue[SMALL].top(); freeTaskQue[SMALL].pop();
-            tasks.emplace_back(task);
-        }
-        else break;
-        cnt++;
-    }
-    rem = (int)freeTaskQue[0].size() + (int)freeTaskQue[1].size();
-    if(cnt == 0) {
-        cout << 0 << endl;
-        return;
-    }
-    vector<int> worker;
-    vector<vector<int>> cost;
-    for(int i=0;i<M;i++) {
-        if(working[i][0] == -1) {
-            worker.emplace_back(i);
-            vector<int> t;
-            for(auto j:tasks){
-                t.emplace_back(estimateDay(i, j));
-            }
-            cost.emplace_back(t);
-        }
-    }
-    int m = worker.size();
-    vector<int> dp(1<<m, INF);
-    vector<array<int,3>> pos(1<<m, {-1,-1,-1});
-    dp[0] = 0;
-    int mi = INF, mibit = -1;
-
-    auto f = [](int &dp, int &cost, int &rem) {
-        if(rem < 10) return max(dp, cost);
-        return dp + cost;
-    };
-
-    for(int i=0; i<cnt; i++){
-        for(int bit=(1<<i)-1; bit < (1<<m); bit = next_combination(bit)){
-            for(int j=0; j<m; j++){
-                if(bit & (1<<j)) continue;
-                if(chmin(dp[bit | (1<<j)], f(dp[bit], cost[j][i], rem))){
-                    pos[bit | (1<<j)] = {bit, j, i};
-                }
-                if(i == cnt - 1 && chmin(mi, dp[bit | (1<<j)])){
-                    mibit = (bit | (1<<j));
-                }
-            }
-            if(bit == 0) break;
-        }
-    }
-    while(mibit != 0) {
-        remainWorker--;
-        auto [nb, person_i, task_i] = pos[mibit];
-        mibit = nb;
-        int person = worker[person_i];
-        int task = tasks[task_i];
-        working[person] = {task, day, cost[person_i][task_i]};
-        addAns(ans, sz, person, task);
-    }
-    cout << sz << " ";
-    cout << ans << endl;
-}
-
 
 bool dayEnd(Timer &time){
     int n; cin>>n;
@@ -461,27 +322,12 @@ bool dayEnd(Timer &time){
 
 void solve(Timer &time){
     while(true){
-        if(remainNonFreeTaskCount) assignTask();
-        else assignTask2();
+        assignTask();
         if(dayEnd(time)) return;
         day++;
     }
 }
 
-void initSkill(){
-    // skillの初期化
-    for(int i=0;i<M;i++){
-        skill[i].resize(K);
-        minimumSkill[i].resize(K);
-        int sum = 0;
-        for(int j=0;j<K;j++){
-            skill[i][j] = (int)randint() % randMa + 1;
-            sum += skill[i][j] * skill[i][j];
-        }
-        WorkerNorm[i] = sum;
-        median.insert(sum);
-    }
-}
 
 void initTask(){
     queue<array<int,2>> q;
@@ -581,7 +427,6 @@ signed main(){
         }
     }
     chmax(randMa, 30);
-    // randMa /= 2;
     for(int i=0;i<R;i++){
         int a,b;
         cin>>a>>b;
@@ -589,8 +434,8 @@ signed main(){
         v[a].emplace_back(b);
         rev[b].emplace_back(a);
     }
-    initSkill();
     initTask();
+    setNeuralNet();
     solve(time);
 
     cerr << "[time] " << time.elapsed() << " ms"<< endl;
