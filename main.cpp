@@ -220,7 +220,6 @@ void estimateSkill(const int person, Timer &time){
         vector<vector<int>> trainX;
         vector<int> trainY;
         while((int)trainX.size() < batch){
-            cerr << "IN" << endl;
             int x = randint() % (int)doneTaskDay[person].size();
             trainX.emplace_back(doneTaskSkill[person][x]);
             trainY.emplace_back(doneTaskDay[person][x]);
