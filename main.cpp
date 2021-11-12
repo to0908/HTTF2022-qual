@@ -138,6 +138,7 @@ priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
 vector<int> WorkerNorm(M);
 MedianManager<int> WorkerNormMedian;
+vector<vector<int>> minimumSkill(M);
 int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
 
@@ -178,6 +179,9 @@ void estimateSkill(const int person, Timer &time){
         if(past + r <= 0) continue;
         doneTask[person].push_back({working[person][0], past + r});
     }
+    for(int i=0;i<K;i++){
+        chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
+    }
     if(gap > 15){
         changed = true;
         for(int i=0;i<K;i++) {
@@ -191,6 +195,7 @@ void estimateSkill(const int person, Timer &time){
             chmax(skill[person][i], 1);
         }
     }
+    for(int i=0;i<K;i++) chmax(skill[person][i], minimumSkill[person][i]);
     // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
     int loss = calcLoss(person);
     int notZero = 0;
@@ -207,7 +212,7 @@ void estimateSkill(const int person, Timer &time){
         int p = randint() % K;
         int inc = randint() % 2;
         bool dec = false;
-        if(notZero < Kdiv2 or inc==0) {
+        if(notZero < Kdiv2 or inc==0 or skill[person][p] == minimumSkill[person][p]) {
             if(skill[person][p] == 0) notZero++;
             skill[person][p]++;
         }
@@ -233,6 +238,9 @@ void estimateSkill(const int person, Timer &time){
             if(dec) skill[person][p]++;
             else skill[person][p]--;
         }
+    }
+    for(int i=0;i<K;i++) {
+        chmax(bestSkill[i], minimumSkill[person][i]);
     }
     int norm = WorkerNorm[person];
     if(changed) {
@@ -332,6 +340,7 @@ void init(){
     // skillの初期化
     for(int i=0;i<M;i++){
         skill[i].resize(K);
+        minimumSkill[i].resize(K);
         int sum = 0;
         for(int j=0;j<K;j++){
             skill[i][j] = max(1, (int)randint() % randMa);
