@@ -37,18 +37,18 @@ struct NN {
         // cout << "#skill " << id << " " << skill << endl; 
         cout << "#s " << id + 1 << " " << skill << endl; 
     }
-    // NN();
-    NN(){}
+    NN() = default;
+    // NN(){}
     NN(int k){
         K = k;
         d = -10;
         sig_d = sigmoid(d);
         grad_d = 0;
         for(int i=0;i<K;i++) {
-            S.push_back(0);
-            s.push_back(-1);
-            sig_s.push_back(0);
-            grad_s.push_back(0);
+            S.push_back(0.0);
+            s.push_back(-1.0);
+            sig_s.push_back(0.0);
+            grad_s.push_back(0.0);
             skill.push_back(1);
         }
         update_Ss();
@@ -57,17 +57,17 @@ struct NN {
         update_skill();
     }
     void clear_grad(){
-        for(int i=0;i<K;i++) grad_s[i] = 0;
-        grad_d = 0;
+        for(int i=0;i<K;i++) grad_s[i] = 0.0;
+        grad_d = 0.0;
     }
     double compute_D(){
-        return 20 + 40 * sigmoid(d);
+        return 20.0 + 40.0 * sigmoid(d);
     }
     double compute_Q(){
         double ret = 0;
         for(int i=0;i<K;i++) ret += S[i] * S[i];
         ret += 0.004;
-        assert(sqrt(ret) > 1e-8);
+        assert(sqrt(ret) > 1e-10);
         return D / sqrt(ret);
     }
 
@@ -97,16 +97,23 @@ struct NN {
 
         int n = X.size();
         assert(n != 0);
+        double sum = 0;
+        for(int i=0;i<K;i++) sum += S[i] * S[i];
         for(int i=0;i<n;i++){
             double der_E = 2 * (predict(X[i]) - y[i]);
             for(int j=0;j<K;j++){
                 // double der_Q = S[i];
-                double der_D = der_E * Q / D;
+                double der_D = der_E * Q / D * S[j];
                 double der_d = der_D * 40 * inv_sig(sig_d);
-                double der_S = der_E * - S[i] * Q / D * Q / D * Q;
-                double der_s = der_S * inv_sig(sig_s[i]) * 4.0;
                 grad_d += der_d;
-                grad_s[i] += der_s;
+
+                // double der_S = der_E * -S[j] * Q / D * Q / D * Q;
+                double ss = S[j] * S[j];
+                double r = sum - ss;
+                if(r < 1e-2 && ss < 1e-2) continue;
+                double der_S = der_E * D * r * sqrt(sum) / (r*r + 2 * ss * r + ss * ss);
+                double der_s = der_S * inv_sig(sig_s[j]) * 4.0;
+                grad_s[j] += der_s;
             }
         }
         double mul = lr / (double)n;
@@ -144,7 +151,7 @@ struct NN {
 };
 
 const int N = 1000, M = 20;
-int K, R, Kdiv2, randMa;
+int K, R;
 vector<vector<int>> d(N);
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
@@ -165,7 +172,6 @@ void setNeuralNet() {
 }
 int remainWorker = M;
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
-vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 vector<vector<int>> doneTaskDay(M); // かかった日数
 vector<vector<vector<int>>> doneTaskSkill(M); // d
 /////////////////////////////////////////////////////////
@@ -185,8 +191,8 @@ int calcL1norm(vector<int> &v){
 }
 
 bool debug = false;
-int epoch = 2;
-int batch = 25;
+int epoch = 3;
+int batch = 32;
 void estimateSkill(const int person, Timer &time){
     remainWorker++;
     // 今のday, working[person]の情報から更新
@@ -426,15 +432,12 @@ signed main(){
     Timer time;
 
     cin>>K>>K>>K>>R;
-    Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
         for(int j=0;j<K;j++){
             cin>>d[i][j];
-            chmax(randMa, d[i][j]);
         }
     }
-    chmax(randMa, 30);
     for(int i=0;i<R;i++){
         int a,b;
         cin>>a>>b;
