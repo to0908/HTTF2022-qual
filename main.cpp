@@ -206,7 +206,7 @@ void estimateSkill(const int person, Timer &time){
     }
     const int yakiR = 1500;
     vector<int> bestSkill = skill[person];
-    int iter=1000;
+    int iter=2000;
     while(iter--){
         int p = randint() % K;
         int inc = randint() % 2;
