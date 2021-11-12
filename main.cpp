@@ -30,18 +30,24 @@ unsigned int randint() {
 }
 
 struct NN {
-    void print_skill(){ cout << "#s " << skill << endl; }
+    void print_skill(int id){ 
+        // cout << "#DQS " << D << " " << Q << " " << S << endl;
+        // cout << "#sig_s: " << sig_s << endl;
+        // cout << "#s " << s << endl; 
+        // cout << "#skill " << id << " " << skill << endl; 
+        cout << "#s " << id << " " << skill << endl; 
+    }
 
     NN(){}
     NN(int k){
         K = k;
-        d = 0;
-        sig_d = 0;
+        d = -10;
+        sig_d = sigmoid(d);
         grad_d = 0;
         S = vector<double>(k, 0);
-        s = vector<double>(k, 0);
-        grad_s = vector<double>(k, 0);
+        s = vector<double>(k, -1);
         sig_s = vector<double>(k, 0);
+        grad_s = vector<double>(k, 0);
         skill = vector<int> (k, 1);
         update_Ss();
         D = compute_D();
@@ -58,6 +64,8 @@ struct NN {
     double compute_Q(){
         double ret = 0;
         for(int i=0;i<K;i++) ret += S[i] * S[i];
+        ret += 0.004;
+        assert(sqrt(ret) > 1e-8);
         return D / sqrt(ret);
     }
 
@@ -68,7 +76,12 @@ struct NN {
         }
     }
     void update_skill(){
-        for(int i=0;i<K;i++) skill[i] = round(Q * s[i]);
+        assert((int)skill.size() == K);
+        for(int i=0;i<K;i++) {
+            skill[i] = round(Q * S[i]);
+            chmax(skill[i], 0);
+            chmin(skill[i], D);
+        }
     }
     int predict(vector<int> &v){
         assert((int)v.size() == K);
@@ -77,30 +90,38 @@ struct NN {
         return max(1, ret);
     }
 
-    void train(vector<vector<int>> &X, vector<int> &y, double lr=12){
+    void train(vector<vector<int>> &X, vector<int> &y, double lr=1){
         clear_grad();
-        sig_d = sigmoid(d);
-        D = compute_D();
-        update_Ss();
-        Q = compute_Q();
-        update_skill();
+        // sig_d = sigmoid(d);
+        // D = compute_D();
+        // update_Ss();
+        // Q = compute_Q();
+        // update_skill();
 
         int n = X.size();
+        assert(n != 0);
         for(int i=0;i<n;i++){
-            double der_E = predict(X[i]) - y[i];
+            double der_E = 2 * (predict(X[i]) - y[i]);
             for(int j=0;j<K;j++){
                 // double der_Q = S[i];
                 double der_D = der_E * Q / D;
                 double der_d = der_D * 40 * inv_sig(sig_d);
-                double der_S = der_E * - S[i] * Q / D * Q / D* Q;
+                double der_S = der_E * - S[i] * Q / D * Q / D * Q;
                 double der_s = der_S * inv_sig(sig_s[i]) * 4.0;
                 grad_d += der_d;
                 grad_s[i] += der_s;
             }
         }
-        double mul = lr / (double)X.size();
+        double mul = lr / (double)n;
         d -= grad_d * mul;
         for(int i=0;i<K;i++) s[i] -= grad_s[i] * mul;
+
+        // update_skill();
+        sig_d = sigmoid(d);
+        D = compute_D();
+        update_Ss();
+        Q = compute_Q();
+        update_skill();
     }
 
 private:
@@ -146,7 +167,7 @@ int notReleased = N; // まだ開始することができない残りの仕事�
 vector<NN> Nets(M);
 void setNeuralNet() {
     for(int i=0;i<M;i++) Nets[i] = NN(K);
-    cerr << "OK" << endl;
+    Nets[7].print_skill(8);
 }
 int remainWorker = M;
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
@@ -178,33 +199,35 @@ int calcL1norm(vector<int> &v){
     return sum;
 }
 
-const int eps = 0.5;
-bool debug = true;
+bool debug = false;
 int epoch = 2;
-int batch = 8;
+int batch = 20;
 void estimateSkill(const int person, Timer &time){
     remainWorker++;
-    // TODO: ずれの方向から、焼きなましの方向を決める。
-
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     int task = working[person][0];
     int estpast = working[person][2];
     if(debug) cerr << "true/est/dif: " << past << " " << estpast << " " << past - estpast << (abs(past - estpast) <= 5 ? " ------ok------":"") << endl;
-    // doneTask[person].push_back({task, past});
-    doneTaskDay[person].push_back(past);
-    doneTaskSkill[person].push_back(d[task]);
-    if(past - estpast == 0) return;
+    for(int r=-3;r<=3;r++){
+        if(past + r <= 0) continue;
+        doneTaskDay[person].push_back(past + r);
+        doneTaskSkill[person].push_back(d[task]);
+    }
+    assert((int)doneTaskDay[person].size() != 0);
+    assert(doneTaskSkill[person].size() == doneTaskDay[person].size());
     for(int epo=0;epo<epoch;epo++){
         vector<vector<int>> trainX;
         vector<int> trainY;
         while((int)trainX.size() < batch){
+            cerr << "IN" << endl;
             int x = randint() % (int)doneTaskDay[person].size();
             trainX.emplace_back(doneTaskSkill[person][x]);
             trainY.emplace_back(doneTaskDay[person][x]);
         }
         Nets[person].train(trainX, trainY);
     }
+    Nets[person].print_skill(person + 1);
     if(debug) cerr << "est - past: " << Nets[person].predict(doneTaskSkill[person].back()) - past << endl;
 }
 
