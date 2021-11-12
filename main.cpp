@@ -206,7 +206,7 @@ void estimateSkill(const int person, Timer &time){
     }
     const int yakiR = 1500;
     vector<int> bestSkill = skill[person];
-    int iter=2000;
+    int iter=1500;
     while(iter--){
         int p = randint() % K;
         int inc = randint() % 2;
@@ -229,7 +229,7 @@ void estimateSkill(const int person, Timer &time){
             if(loss == 0) break;
             continue;
         }
-        else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
+        else if(yakiR * (3000 - time.elapsed()) > 3000*(randint()%yakiR)){
             // force Next
             continue;
         }
@@ -253,7 +253,7 @@ void estimateSkill(const int person, Timer &time){
     workerQue.push({norm, person});
 }
 
-void assignTask(){
+void assignTask(Timer &time){
 
     vector<int> ans;
     int sz = 0;
@@ -263,7 +263,7 @@ void assignTask(){
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
     };
-
+    // TODO: ここで焼きなます(どの人を使うか藻含めて)
     while(workerQue.size()){
         auto [norm, person] = workerQue.top();
         if(norm >= WorkerNormMedian.get()) {
@@ -302,6 +302,46 @@ void assignTask(){
         }
         workerQue.pop();
     }
+    if(sz <= 1) {
+        cout << sz << " ";
+        cout << ans << endl;
+        return;
+    }
+    int loss = 0;
+    for(int i=0;i<sz;i++) {
+        loss += estimateDay(ans[i*2]-1, ans[i*2+1]-1);
+    }
+    vector<int> tasks(sz);
+    for(int i=0;i<sz;i++) tasks[i] = ans[i*2 + 1];
+    vector<int> best = tasks;
+    const int yakiR = 1500;
+    int iter=1000;
+    while(iter--){
+        int x = randint() % sz;
+        int y = randint() % sz;
+        while(y == x) y = randint() % sz;
+        swap(tasks[x], tasks[y]);
+        int lossNext = 0;
+        for(int i=0;i<sz;i++) {
+            lossNext += estimateDay(ans[i*2]-1, tasks[i]-1);
+        }
+        if(lossNext < loss){
+            loss = lossNext;
+            best = tasks;
+            continue;
+        }
+        else if(yakiR * (3000 - time.elapsed()) > 3000*(randint()%yakiR)){
+            // force Next
+            continue;
+        }
+        else {
+            swap(tasks[x], tasks[y]);
+        }
+    }
+    for(int i=0;i<sz;i++){
+        ans[i * 2 + 1] = best[i];
+        working[ans[i * 2] - 1] = {best[i] - 1, day, estimateDay(ans[i * 2] - 1, best[i] - 1)};
+    }
     cout << sz << " ";
     cout << ans << endl;
 }
@@ -333,7 +373,7 @@ bool dayEnd(Timer &time){
 
 void solve(Timer &time){
     while(true){
-        assignTask();
+        assignTask(time);
         if(dayEnd(time)) return;
         day++;
     }
