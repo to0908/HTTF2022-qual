@@ -127,13 +127,15 @@ const int INF = 1e9 + 7;
 
 ////////////// Task //////////
 int taskLSThreshold, taskLSThresholdf;
-priority_queue<array<int,2>> taskQue[2]; // [LARGE/SMALL]{重要度, task index}
+priority_queue<array<int,2>> taskQueLARGE; // [LARGE/SMALL]{重要度, task index}
+priority_queue<array<int,2>,vector<array<int,2>>,greater<array<int,2>>> taskQueSMALL; // [LARGE/SMALL]{重要度, task index}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
 vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
 int remainTask = N;
+deque<int> freetask;
 ///////////// Worker /////////
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
@@ -142,7 +144,6 @@ MedianManager<int> WorkerNormMedian;
 vector<vector<int>> minimumSkill(M);
 int doLargeTask = -900; // doLargeTask < doneTaskCountの間だけやる
 /////////////////////////////////////////////////////////
-
 
 int estimateDay(int person, int task){
     int est = 0;
@@ -160,7 +161,6 @@ int calcLoss(int person){
     }
     return loss;
 }
-
 int calcL1norm(vector<int> &v){
     int sum = 0;
     for(auto i:v) sum += i;
@@ -168,8 +168,6 @@ int calcL1norm(vector<int> &v){
 }
 
 void estimateSkill(const int person, Timer &time){
-    // TODO: ずれの方向から、焼きなましの方向を決める。
-
     // 今のday, working[person]の情報から更新
     int past = day - working[person][1] + 1;
     // doneTask[person].push_back({working[person][0], past});
@@ -182,7 +180,7 @@ void estimateSkill(const int person, Timer &time){
     for(int i=0;i<K;i++){
         chmax(minimumSkill[person][i], d[working[person][0]][i] - past);
     }
-    if(gap > 15){
+    if(gap > 10){
         changed = true;
         for(int i=0;i<K;i++) {
             double x = 0;
@@ -196,7 +194,6 @@ void estimateSkill(const int person, Timer &time){
         }
     }
     for(int i=0;i<K;i++) chmax(skill[person][i], minimumSkill[person][i]);
-    // K個パラメータがあって、全ての条件を満たすようにskill[person]を変更する
     int loss = calcLoss(person);
     int notZero = 0;
     for(int i=0;i<K;i++){
@@ -254,7 +251,7 @@ void estimateSkill(const int person, Timer &time){
     workerQue.push({norm, person});
 }
 
-void assignTask(){
+void assignTask(Timer &time){
 
     vector<int> ans;
     int sz = 0;
@@ -265,15 +262,39 @@ void assignTask(){
         ans.emplace_back(task+1);
     };
 
+    bool ok = 1;
+    if(!taskQueLARGE.empty()){
+        auto [weight, task] = taskQueLARGE.top();
+        if(weight > 0) ok = false;
+    }
+    if(!taskQueSMALL.empty()) {
+        auto [weight, task] = taskQueSMALL.top();
+        if(weight < 1e8) ok = false;
+    }
+    if(ok) {
+        while(taskQueSMALL.size()) {
+            auto [weight, task] = taskQueSMALL.top(); taskQueSMALL.pop();
+            taskQueLARGE.push({-weight, task});
+        }
+        while(taskQueLARGE.size()) {
+            auto [weight, task] = taskQueLARGE.top(); taskQueLARGE.pop();
+            freetask.push_back(task);
+        }
+    }
+
     while(workerQue.size()){
         auto [norm, person] = workerQue.top();
         if(norm >= WorkerNormMedian.get()) {
-            if(!taskQue[LARGE].empty()) {
-                auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
+            if(!taskQueLARGE.empty()) {
+                auto [weight, task] = taskQueLARGE.top(); taskQueLARGE.pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!taskQue[SMALL].empty()){
-                auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
+            else if(!taskQueSMALL.empty()){
+                auto [weight, task] = taskQueSMALL.top(); taskQueSMALL.pop();
+                addAns(ans, sz, person, task);
+            }
+            else if(freetask.size()) {
+                int task = freetask.front(); freetask.pop_front();
                 addAns(ans, sz, person, task);
             }
             else break;
@@ -281,23 +302,27 @@ void assignTask(){
         else{
             if(day > 10 and day < 60) {
                 int t = randint() % 2;
-                if(t && !taskQue[LARGE].empty()) {
-                    auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
+                if(t && !taskQueLARGE.empty()) {
+                    auto [weight, task] = taskQueLARGE.top(); taskQueLARGE.pop();
                     addAns(ans, sz, person, task);
                     workerQue.pop();
                     continue;
                 }
             }
-            if(!taskQue[SMALL].empty()) {
-                auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
+            if(!taskQueSMALL.empty()) {
+                auto [weight, task] = taskQueSMALL.top(); taskQueSMALL.pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!taskQue[LARGE].empty()) {
+            else if(!taskQueLARGE.empty()) {
                 if(R > 2000 && day > 100) {
                     int t = randint() % 2;
                     if(t == 0) break;
                 }
-                auto [weight, task] = taskQue[LARGE].top();
+                // if(R <= 2000 && day > 100) {
+                //     int t = randint() % 3;
+                //     if(t == 0) break;
+                // }
+                auto [weight, task] = taskQueLARGE.top();
                 if(remainTask < 15) {
                     int est = day + estimateDay(person, task);
                     bool makasu = false;
@@ -312,13 +337,60 @@ void assignTask(){
                     if(makasu) break;
                 }
                 addAns(ans, sz, person, task);
-                taskQue[LARGE].pop();
+                taskQueLARGE.pop();
+            }
+            else if(freetask.size()) {
+                int task = freetask.back(); freetask.pop_back();
+                addAns(ans, sz, person, task);
             }
             else break;
         }
         workerQue.pop();
     }
     remainTask -= sz;
+
+    // if(sz <= 1) {
+    //     cout << sz << " ";
+    //     cout << ans << endl;
+    //     return;
+    // }
+    // if(R < 2000) {
+    //     int loss = 0;
+    //     for(int i=0;i<sz;i++) {
+    //         loss += estimateDay(ans[i*2]-1, ans[i*2+1]-1);
+    //     }
+    //     vector<int> tasks(sz);
+    //     for(int i=0;i<sz;i++) tasks[i] = ans[i*2 + 1];
+    //     vector<int> best = tasks;
+    //     const int yakiR = 1500;
+    //     int iter=1000;
+    //     while(iter--){
+    //         int x = randint() % sz;
+    //         int y = randint() % sz;
+    //         while(y == x) y = randint() % sz;
+    //         swap(tasks[x], tasks[y]);
+    //         int lossNext = 0;
+    //         for(int i=0;i<sz;i++) {
+    //             lossNext += estimateDay(ans[i*2]-1, tasks[i]-1);
+    //         }
+    //         if(lossNext < loss){
+    //             loss = lossNext;
+    //             best = tasks;
+    //             continue;
+    //         }
+    //         else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
+    //             // force Next
+    //             continue;
+    //         }
+    //         else {
+    //             swap(tasks[x], tasks[y]);
+    //         }
+    //     }
+    //     for(int i=0;i<sz;i++){
+    //         ans[i * 2 + 1] = best[i];
+    //         working[ans[i * 2] - 1] = {best[i] - 1, day, estimateDay(ans[i * 2] - 1, best[i] - 1)};
+    //     }
+    // }
     cout << sz << " ";
     cout << ans << endl;
 }
@@ -336,12 +408,14 @@ bool dayEnd(Timer &time){
             if(rCnt[x] == 0) {
                 notReleased--;
                 if(v[x].size() == 0){
-                    taskQue[taskWeight[x][1] > taskLSThresholdf].push({taskWeight[x][1] - INF, x});
+                    bool la = taskWeight[x][1] > taskLSThresholdf;
+                    if(la) taskQueLARGE.push({taskWeight[x][1] - INF, x});
+                    else taskQueSMALL.push({-taskWeight[x][1] + INF, x});
                 }
                 else{
-                    taskQue[taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold].push(
-                        {taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x}
-                    );
+                    bool la = taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold;
+                    if(la) taskQueLARGE.push({taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x});
+                    else taskQueSMALL.push({-taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x});
                 }
             }
         }
@@ -352,7 +426,7 @@ bool dayEnd(Timer &time){
 
 void solve(Timer &time){
     while(true){
-        assignTask();
+        assignTask(time);
         if(dayEnd(time)) return;
         day++;
     }
@@ -418,21 +492,25 @@ void init(){
     int th = initialTask[min(30, itcnt / 3)];
     int th2 = nfTask[(int)nfTask.size() / 2];
     int th3 = fTask[(int)fTask.size() / 2];
-    // int th2 = allTask[N / 2];
     for(int i=0;i<N;i++) {
         if(rCnt[i] == 0 && cnt[i] == 0) {
             notReleased--;
             int sum = taskWeight[i][0] + taskWeight[i][1];
-            taskQue[sum > th3].push({taskWeight[i][1] - INF, i});
+            bool la = sum > th3;
+            if(la) taskQueLARGE.push({taskWeight[i][1] - INF, i});
+            else taskQueSMALL.push({-taskWeight[i][1] + INF, i});
         }
         else if(rCnt[i] == 0) {
             notReleased--;
             int sum = taskWeight[i][0] + taskWeight[i][1];
+            bool la = sum > th2;
             if(-taskWeight[i][0] + taskWeight[i][1] < th){
-                taskQue[sum > th2].push({INF + taskWeight[i][0] - taskWeight[i][1], i});
+                if(la) taskQueLARGE.push({INF + taskWeight[i][0] - taskWeight[i][1], i});
+                else taskQueSMALL.push({-INF - taskWeight[i][0] + taskWeight[i][1], i});
             }
             else{
-                taskQue[sum > th2].push({taskWeight[i][0] + taskWeight[i][1], i});
+                if(la) taskQueLARGE.push({taskWeight[i][0] + taskWeight[i][1], i});
+                else taskQueSMALL.push({-taskWeight[i][0] + taskWeight[i][1], i});
             }
         }
     }
