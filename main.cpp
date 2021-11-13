@@ -35,8 +35,8 @@ template< typename T > struct MedianManager {
     multiset<T, greater<T>> l;
 
     MedianManager(){
-        median = 0;
-        n = 0;
+        n = 0, median=0;
+        for(int i=0;i<4;i++) insert(-1e9);
     }
 
     T get(){
@@ -123,16 +123,17 @@ int K, R, Kdiv2, randMa;
 vector<vector<int>> d(N), skill(M); // 問題のd, s
 vector<vector<int>> v(N), rev(N); // 入力のDAGと逆DAG
 int day = 0; // 現在の日数
+const int INF = 1e9 + 7;
 
 ////////////// Task //////////
-int taskLSThreshold;
+int taskLSThreshold, taskLSThresholdf;
 priority_queue<array<int,2>> taskQue[2]; // [LARGE/SMALL]{重要度, task index}
-priority_queue<array<int,2>> freeTaskQue; // (v.size()==0),下のタスクがないもの {重要度, task index}
 vector<int> rCnt(N); // 依存のカウント(自分より下の個数)
 vector<array<int,2>> taskWeight(N); // タスクの重み, {子孫の数, L2ノルム}
 vector<vector<array<int,2>>> doneTask(M); // doneTask[person] = vector<{taskIdx, かかった日数}>
 int doneTaskCount = 0, doneTaskThreshold = 900, attenuate=0.7; // 終わったタスクの数
 int notReleased = N; // まだ開始することができない残りの仕事の数
+int remainTask = N;
 ///////////// Worker /////////
 priority_queue<array<int,2>> workerQue; // {L2 norm of skill, person}
 vector<array<int,3>> working(M, {-1, -1, -1}); // {task, 開始したday, estimateDay}
@@ -275,33 +276,49 @@ void assignTask(){
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!freeTaskQue.empty()){
-                auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
-            }
             else break;
         }
         else{
+            if(day > 10 and day < 60) {
+                int t = randint() % 2;
+                if(t && !taskQue[LARGE].empty()) {
+                    auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
+                    addAns(ans, sz, person, task);
+                    workerQue.pop();
+                    continue;
+                }
+            }
             if(!taskQue[SMALL].empty()) {
                 auto [weight, task] = taskQue[SMALL].top(); taskQue[SMALL].pop();
                 addAns(ans, sz, person, task);
             }
-            else if(!taskQue[LARGE].empty() && notReleased > 20) {
+            else if(!taskQue[LARGE].empty()) {
                 if(R > 2000 && day > 100) {
                     int t = randint() % 2;
                     if(t == 0) break;
                 }
-                auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
+                auto [weight, task] = taskQue[LARGE].top();
+                if(remainTask < 15) {
+                    int est = day + estimateDay(person, task);
+                    bool makasu = false;
+                    for(int i=0;i<M;i++) {
+                        if(WorkerNorm[i] <= WorkerNorm[person]) continue;
+                        int nx = working[i][1] + working[i][2] + estimateDay(i, task);
+                        if(nx < est) {
+                            makasu = true;
+                            break;
+                        }
+                    }
+                    if(makasu) break;
+                }
                 addAns(ans, sz, person, task);
-            }
-            else if(!freeTaskQue.empty()){
-                auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
-                addAns(ans, sz, person, task);
+                taskQue[LARGE].pop();
             }
             else break;
         }
         workerQue.pop();
     }
+    remainTask -= sz;
     cout << sz << " ";
     cout << ans << endl;
 }
@@ -318,7 +335,9 @@ bool dayEnd(Timer &time){
             rCnt[x]--;
             if(rCnt[x] == 0) {
                 notReleased--;
-                if(v[x].size() == 0) freeTaskQue.push({taskWeight[x][1], x});
+                if(v[x].size() == 0){
+                    taskQue[taskWeight[x][1] > taskLSThresholdf].push({taskWeight[x][1] - INF, x});
+                }
                 else{
                     taskQue[taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold].push(
                         {taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x}
@@ -357,7 +376,8 @@ void init(){
     queue<int> q;
     // そのタスクをするのに必要な残りタスクの数
     vector<int> initialTask;
-    vector<int> allTask;
+    vector<int> nfTask;
+    vector<int> fTask;
     for(int i=0;i<N;i++){
         rCnt[i] = rev[i].size();
         cnt[i] = v[i].size();
@@ -383,22 +403,27 @@ void init(){
             taskWeight[i][0] *= R;
             taskWeight[i][1] *= (4000 - R);
         }
-        allTask.emplace_back(taskWeight[i][0] + taskWeight[i][1]);
+        if(cnt[i] != 0) nfTask.emplace_back(taskWeight[i][0] + taskWeight[i][1]);
+        if(cnt[i] == 0) fTask.emplace_back(taskWeight[i][0] + taskWeight[i][1]);
         if(rCnt[i] == 0){
-            initialTask.emplace_back(-taskWeight[i][0] + taskWeight[i][1]);
+            initialTask.emplace_back(-taskWeight[i][0] + taskWeight[i][1] * 2);
         }
         // cerr << i << " " << taskWeight[i][0] << " " << taskWeight[i][1] << endl;
     }
+
     sort(all(initialTask));
-    sort(all(allTask));
+    sort(all(nfTask));
+    sort(all(fTask));
     int itcnt = initialTask.size();
-    int th = initialTask[itcnt / 2];
-    int th2 = allTask[itcnt / 2];
-    int INF = 1e9 + 7;
+    int th = initialTask[min(30, itcnt / 3)];
+    int th2 = nfTask[(int)nfTask.size() / 2];
+    int th3 = fTask[(int)fTask.size() / 2];
+    // int th2 = allTask[N / 2];
     for(int i=0;i<N;i++) {
         if(rCnt[i] == 0 && cnt[i] == 0) {
             notReleased--;
-            freeTaskQue.push({taskWeight[i][1], i});
+            int sum = taskWeight[i][0] + taskWeight[i][1];
+            taskQue[sum > th3].push({taskWeight[i][1] - INF, i});
         }
         else if(rCnt[i] == 0) {
             notReleased--;
@@ -412,6 +437,7 @@ void init(){
         }
     }
     taskLSThreshold = th2;
+    taskLSThresholdf = th3;
 }
 
 signed main(){
@@ -421,7 +447,6 @@ signed main(){
     Timer time;
 
     cin>>K>>K>>K>>R;
-    // if(R >= 2000) doneTaskThreshold = 0;
     Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
