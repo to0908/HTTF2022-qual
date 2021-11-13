@@ -507,12 +507,12 @@ bool dayEnd(Timer &time){
                     tanomu[idx].push(x);
                 }
                 if(v[x].size() == 0){
-                    bool la = taskWeight[x][1] > taskLSThresholdf;
+                    bool la = taskWeight[x][1] < taskLSThresholdf;
                     if(la) taskQueLARGE.push({taskWeight[x][1] - INF, x});
                     else taskQueSMALL.push({-taskWeight[x][1] + INF, x});
                 }
                 else{
-                    bool la = taskWeight[x][0] + taskWeight[x][1] > taskLSThreshold;
+                    bool la = taskWeight[x][0] + taskWeight[x][1] < taskLSThreshold;
                     if(la) taskQueLARGE.push({taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x});
                     else taskQueSMALL.push({-taskWeight[x][0] + taskWeight[x][1] * (1 - attenuate * (doneTaskCount <= doneTaskThreshold)), x});
                 }
@@ -604,14 +604,14 @@ void init(){
         if(rCnt[i] == 0 && cnt[i] == 0) {
             notReleased--;
             int sum = taskWeight[i][0] + taskWeight[i][1];
-            bool la = sum > th3;
+            bool la = sum < th3;
             if(la) taskQueLARGE.push({taskWeight[i][1] - INF, i});
             else taskQueSMALL.push({-taskWeight[i][1] + INF, i});
         }
         else if(rCnt[i] == 0) {
             notReleased--;
             int sum = taskWeight[i][0] + taskWeight[i][1];
-            bool la = sum > th2;
+            bool la = sum < th2;
             // if(-taskWeight[i][0] + taskWeight[i][1] < th){
             //     if(la) taskQueLARGE.push({INF + taskWeight[i][0] - taskWeight[i][1], i});
             //     else taskQueSMALL.push({-INF - taskWeight[i][0] + taskWeight[i][1], i});
