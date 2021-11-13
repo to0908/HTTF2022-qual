@@ -229,7 +229,7 @@ void estimateSkill(const int person, Timer &time){
             if(loss == 0) break;
             continue;
         }
-        else if(yakiR * (3000 - time.elapsed()) > 3000*(randint()%yakiR)){
+        else if(yakiR * (2000 - time.elapsed()) > 2000*(randint()%yakiR)){
             // force Next
             continue;
         }
@@ -253,6 +253,82 @@ void estimateSkill(const int person, Timer &time){
     workerQue.push({norm, person});
 }
 
+int next_combination(int sub) {
+    int x = sub & -sub, y = sub + x;
+    return (((sub & ~y) / x) >> 1) | y;
+}
+
+void assignTaskDP() {
+    vector<int> ans;
+    int sz = 0;
+    auto addAns = [](vector<int> &ans, int &sz, int &person, int &task) {
+        // working[person] = {task, day, estimateDay(person, task)};
+        sz++;
+        ans.emplace_back(person+1);
+        ans.emplace_back(task+1);
+    };
+    vector<int> tasks;
+    vector<int> worker;
+    while(taskQue[0].size()) {
+        auto [weight, task] = taskQue[0].top(); taskQue[0].pop();
+        tasks.push_back(task);
+    }
+    while(taskQue[1].size()) {
+        auto [weight, task] = taskQue[1].top(); taskQue[1].pop();
+        tasks.push_back(task);
+    }
+    while(freeTaskQue.size()) {
+        auto [weight, task] = freeTaskQue.top(); freeTaskQue.pop();
+        tasks.push_back(task);
+    }
+    while(workerQue.size()){
+        auto [norm, person] = workerQue.top(); workerQue.pop();
+        worker.push_back(person);
+    }
+    int m = worker.size();
+    int n = tasks.size();
+    int cost[m][n];
+    for(int i=0;i<m;i++) {
+        for(int j=0;j<n;j++) {
+            cost[i][j] = estimateDay(worker[i], tasks[j]);
+        }
+    }
+    const int INF = 1e9 + 7;
+    vector<int> dp(1<<m, INF);
+    vector<array<int,3>> pos(1<<m, {-1,-1,-1});
+    dp[0] = 0;
+    int mi = INF, mibit = -1;
+    for(int i=0; i<n; i++){
+        for(int bit=(1<<i)-1; bit < (1<<m); bit = next_combination(bit)){
+            for(int j=0; j<m; j++){
+                if(bit & (1<<j)) continue;
+                if(chmin(dp[bit | (1<<j)], dp[bit] + cost[j][i])){
+                    pos[bit | (1<<j)] = {bit, j, i};
+                }
+                if(i == n - 1 && chmin(mi, dp[bit | (1<<j)])){
+                    mibit = (bit | (1<<j));
+                }
+            }
+            if(bit == 0) break;
+        }
+    }
+    while(mibit != 0) {
+        auto [nb, person_i, task_i] = pos[mibit];
+        mibit = nb;
+        int person = worker[person_i];
+        int task = tasks[task_i];
+        working[person] = {task, day, cost[person_i][task_i]};
+        addAns(ans, sz, person, task);
+    }
+    for(auto p:worker){
+        if(working[p][0] == -1) {
+            workerQue.push({WorkerNorm[p], p});
+        }
+    }
+    cout << sz << " ";
+    cout << ans << endl;
+}
+
 void assignTask(Timer &time){
 
     vector<int> ans;
@@ -263,12 +339,30 @@ void assignTask(Timer &time){
         ans.emplace_back(person+1);
         ans.emplace_back(task+1);
     };
-    // TODO: ここで焼きなます(どの人を使うか藻含めて)
+    int remainTask = (int)taskQue[0].size() + (int)taskQue[1].size() + freeTaskQue.size();
+    // if(remainTask == 0) {
+    //     cout << 0 << endl;
+    //     return;
+    // }
+    // if(remainTask <= workerQue.size()) {
+    //     assignTaskDP();
+    //     return;
+    // }
+    vector<array<int,2>> atode;
     while(workerQue.size()){
         auto [norm, person] = workerQue.top();
         if(norm >= WorkerNormMedian.get()) {
             if(!taskQue[LARGE].empty()) {
                 auto [weight, task] = taskQue[LARGE].top(); taskQue[LARGE].pop();
+                int est = estimateDay(person, task);
+                if(R<2000 && est>30 && day>100 && day<900 && remainTask>workerQue.size()) {
+                    int t = randint() % 2;
+                    if(t == 1){
+                        atode.push_back({weight, task});
+                        continue;
+                    }
+                }
+                remainTask--;
                 addAns(ans, sz, person, task);
             }
             else if(!taskQue[SMALL].empty()){
@@ -302,6 +396,7 @@ void assignTask(Timer &time){
         }
         workerQue.pop();
     }
+    for(auto t:atode) taskQue[LARGE].push(t);
     cout << sz << " ";
     cout << ans << endl;
 }
@@ -421,7 +516,6 @@ signed main(){
     Timer time;
 
     cin>>K>>K>>K>>R;
-    // if(R >= 2000) doneTaskThreshold = 0;
     Kdiv2 = K / 2;
     for(int i=0;i<N;i++){
         d[i].resize(K);
